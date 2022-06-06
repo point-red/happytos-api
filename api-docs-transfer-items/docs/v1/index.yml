@@ -1,0 +1,55 @@
+openapi: 3.0.3
+info:
+  title: Point API Docs
+  description: |
+    # Introduction
+    This API is documented in **OpenAPI format**, You can find more information :
+
+    - **Specs:** https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.0.3.md#pathsObject
+    - **Basic Structure:** https://swagger.io/docs/specification/basic-structure/
+    - **Tutorial:** https://support.smartbear.com/swaggerhub/docs/tutorials/openapi-3-tutorial.html
+    
+    # Cross-Origin Resource Sharing
+    This API features Cross-Origin Resource Sharing (CORS) implemented in compliance with  [W3C spec](https://www.w3.org/TR/cors/).
+    And that allows cross-domain communication from the browser.
+    All responses have a wildcard same-origin which makes them completely public and accessible to everyone, including any code on any site.
+
+    # Authentication
+    Ex-Module offers two forms of authentication:
+      - Local Authentication
+      - Json Web Token
+  contact:
+    name: API Support
+    email: martiendt@gmail.com
+    url: https://github.com/Redocly/redoc
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  version: 0.0.1
+servers:
+  - url: https://api.point.red/v1
+    description: Production Server
+tags:
+  - name: Admin
+    description: Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.
+paths:
+  /admins:
+    $ref: './admin.yml'
+  /inventory/transfer-items:
+    $ref: './inventory/transfer-items/transfer-items.yml'
+  /inventory/transfer-items/{id}:
+    $ref: './inventory/transfer-items/transfer-items-by-id.yml'
+  /inventory/transfer-items/export:
+    $ref: './inventory/transfer-items/transfer-items-export.yml'
+  /inventory/receive-items:
+    $ref: './inventory/transfer-items/receive-items.yml'
+  /inventory/receive-items/{id}:
+    $ref: './inventory/transfer-items/receive-items-by-id.yml'
+  /inventory/receive-items/export:
+    $ref: './inventory/transfer-items/receive-items-export.yml'
+  /inventory/transfer-item-customers:
+    $ref: './inventory/transfer-items/transfer-item-customers.yml'
+  /inventory/transfer-item-customers/{id}:
+    $ref: './inventory/transfer-items/transfer-item-customers-by-id.yml'
+  /inventory/transfer-item-customers/export:
+    $ref: './inventory/transfer-items/transfer-item-customers-export.yml'
