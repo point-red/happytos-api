@@ -31,4 +31,10 @@ Route::prefix('inventory')->namespace('Inventory')->group(function () {
     Route::post('receive-items/export', 'TransferItem\\ReceiveItemController@export');
     Route::get('receive-items/{id}/histories', 'TransferItem\\ReceiveItemHistoryController@index');
     Route::post('receive-items/histories', 'TransferItem\\ReceiveItemHistoryController@store');
+    Route::apiResource('transfer-item-customers', 'TransferItem\\TransferItemCustomerController');
+    Route::post('transfer-item-customers/{id}/approve', 'TransferItem\\TransferItemCustomerController@approve');
+    Route::get('transfer-item-customers/{id}/histories', 'TransferItem\\TransferItemCustomerHistoryController@index');
+    Route::post('transfer-item-customers/histories', 'TransferItem\\TransferItemCustomerHistoryController@store');
+    Route::post('transfer-item-customers/{id}/cancellation-approve', 'TransferItem\\TransferItemCustomerController@cancellationApprove');
+    Route::post('transfer-item-customers/export', 'TransferItem\\TransferItemCustomerController@export');
 });
