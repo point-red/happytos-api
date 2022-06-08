@@ -1,0 +1,49 @@
+get:
+  tags:
+    - Admin
+  summary: Read all admin
+  description: lorem ipsum
+  parameters:
+    - name: started
+      required: true
+      in: query
+      description: filter joined admin
+      schema:
+        type: date
+        example: '2022-02-22T00:00:00.0000Z'
+    - name: ended
+      required: true
+      in: query
+      description: filter joined admin
+      schema:
+        type: date
+        example: '2022-02-24T00:00:00.0000Z'
+    - name: timezone
+      in: query
+      description: setup timezone response
+      schema:
+        type: string
+        default: UTC
+        example: Asia/Jakarta
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: integer
+                example: 0
+              data:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      example: 90
+                    address:
+                      type: string
+                      example: 100

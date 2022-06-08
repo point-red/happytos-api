@@ -18,6 +18,7 @@ use App\Model\Inventory\OpeningStock\OpeningStock;
 use App\Model\Inventory\StockCorrection\StockCorrection;
 use App\Model\Inventory\TransferItem\ReceiveItem;
 use App\Model\Inventory\TransferItem\TransferItem;
+use App\Model\Inventory\TransferItem\TransferItemCustomer;
 use App\Model\Manufacture\ManufactureFormula\ManufactureFormula;
 use App\Model\Manufacture\ManufactureInput\ManufactureInput;
 use App\Model\Manufacture\ManufactureOutput\ManufactureOutput;
@@ -77,6 +78,7 @@ class PolymorphicTypeServiceProvider extends ServiceProvider
             StockCorrection::$morphName => StockCorrection::class,
             TransferItem::$morphName => TransferItem::class,
             ReceiveItem::$morphName => ReceiveItem::class,
+            TransferItemCustomer::$morphName => TransferItemCustomer::class,
             // Pos
             PosBill::$morphName => PosBill::class,
             // Purchase

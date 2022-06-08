@@ -1,0 +1,35 @@
+post:
+  tags:
+    - Receive Item
+  summary: Export receive items
+  description:
+  requestBody:
+    content:
+      'application/json':
+        schema:
+          type: object
+          properties:
+            data:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    id:
+                      type: integer
+                date_start:
+                  type: date
+                date_end:
+                  type: date
+                tenant_name:
+                  type: string
+  responses:
+    '200':
+      description:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              url:
+                type: string
