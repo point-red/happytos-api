@@ -43,7 +43,7 @@ class DeleteHubDatabase extends Command
         $dbName = $this->argument('db_name');
 
         // drop hub database if exists
-        $process = Process::fromShellCommandline('mysql -u '.env('DB_USERNAME').' -h '.env('DB_HOST').' -p'.env('DB_PASSWORD').' -e "drop database if exists '.$dbName.'"');
+        $process = Process::fromShellCommandline('mysql -u '.env('DB_USERNAME').' -h '.env('DB_HOST').' -P '.env('DB_PORT').' -p'.env('DB_PASSWORD').' -e "drop database if exists '.$dbName.'"');
         $process->run();
 
         // executes after the command finishes
