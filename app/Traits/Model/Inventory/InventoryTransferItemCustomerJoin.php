@@ -6,6 +6,7 @@ use App\Model\Form;
 use App\Model\Master\Item;
 use App\Model\Inventory\TransferItem\TransferItemCustomer;
 use App\Model\Inventory\TransferItem\TransferItemCustomerItem;
+use App\Model\Master\Customer;
 
 trait InventoryTransferItemCustomerJoin
 {
@@ -31,6 +32,12 @@ trait InventoryTransferItemCustomerJoin
                 $query = $query->leftjoin(Item::getTableName().' as '.Item::$alias,
                     Item::$alias.'.id', '=', TransferItemCustomerItem::$alias.'.item_id');
             }
+        }
+
+        if (in_array('customer', $joins)) {
+            $query = $query->join(Customer::getTableName().' as '.Customer::$alias, function ($q) {
+                $q->on(Customer::$alias.'.id', '=', TransferItemCustomer::$alias.'.customer_id');
+            });
         }
 
         return $query;
