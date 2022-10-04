@@ -145,22 +145,29 @@ class TransferItemCustomerController extends Controller
      */
     public function approve(Request $request, $id)
     {
-        DB::connection('tenant')->beginTransaction();
+        try {
+            DB::connection('tenant')->beginTransaction();
     
-        $transferItemCustomer = TransferItemCustomer::findOrFail($id);
-        if ($transferItemCustomer->form->approval_status === 0) {
-            $transferItemCustomer->form->approval_by = auth()->user()->id;
-            $transferItemCustomer->form->approval_at = now();
-            $transferItemCustomer->form->approval_status = 1;
-            $transferItemCustomer->form->save();
+            $transferItemCustomer = TransferItemCustomer::findOrFail($id);
+            if ($transferItemCustomer->form->approval_status === 0) {
+                $transferItemCustomer->form->approval_by = auth()->user()->id;
+                $transferItemCustomer->form->approval_at = now();
+                $transferItemCustomer->form->approval_status = 1;
+                $transferItemCustomer->form->save();
+                TransferItemCustomer::updateInventory($transferItemCustomer->form, $transferItemCustomer);
+                TransferItemCustomer::updateJournal($transferItemCustomer);
+            }
 
-            TransferItemCustomer::updateInventory($transferItemCustomer->form, $transferItemCustomer);
-            TransferItemCustomer::updateJournal($transferItemCustomer);
+            DB::connection('tenant')->commit();
+
+            return new ApiResource($transferItemCustomer);
+        } catch (\Exception $e) {
+            DB::connection('tenant')->rollBack();
+            return response()->json([
+                'code' => 422,
+                'message' => $e->getMessage(),
+            ], 422);
         }
-
-        DB::connection('tenant')->commit();
-
-        return new ApiResource($transferItemCustomer);
     }
 
     /**
