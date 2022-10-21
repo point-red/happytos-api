@@ -3,7 +3,6 @@
 namespace App\Model\Inventory\TransferItem;
 
 use App\Model\Form;
-use App\Exceptions\IsReferencedException;
 use App\Model\Master\Warehouse;
 use App\Model\TransactionModel;
 use App\Model\Accounting\Journal;
@@ -62,39 +61,14 @@ class TransferItemCustomer extends TransactionModel
         return $this->hasMany(TransferItemCustomerItem::class);
     }
 
-    // Relation that not archived and not canceled
-    // public function receiveItem()
-    // {
-    //     return $this->hasOne(ReceiveItem::class)->join(Form::getTableName(), function ($q) {
-    //         $q->on(Form::getTableName('formable_id'), '=', ReceiveItem::getTableName('id'))
-    //             ->where(Form::getTableName('formable_type'), ReceiveItem::$morphName);
-    //     })->whereNotNull(Form::getTableName('number'))
-    //         ->where(function ($q) {
-    //             $q->whereNull(Form::getTableName('cancellation_status'))
-    //                 ->orWhere(Form::getTableName('cancellation_status'), '!=', '1');
-    //         })->select(ReceiveItem::getTableName('*'));
-    // }
 
-    // public function isAllowedToUpdate()
-    // {
-    //     if ($this->receiveItem != null) {
-    //         throw new IsReferencedException('Cannot edit form because referenced by transfer receive', $this->receiveItem);
-    //     }
-    // }
-
-    // public function isAllowedToDelete()
-    // {
-    //     if ($this->receiveItem != null) {
-    //         throw new IsReferencedException('Cannot edit form because referenced by transfer receive', $this->receiveItem);
-    //     }
-    // }
 
     public static function create($data)
     {
         $transferItemCustomer = new self;
         $transferItemCustomer->fill($data);
 
-        $items = self::mapItems($data['items'] ?? []);
+        $items = self::mapItems($data['items'] ?? [], $data);
 
         $transferItemCustomer->save();
 
@@ -106,21 +80,29 @@ class TransferItemCustomer extends TransactionModel
         return $transferItemCustomer;
     }
 
-    private static function mapItems($items)
+    private static function mapItems($items, $data)
     {
         $array = [];
+        
         foreach ($items as $item) {
             $itemModel = Item::find($item['item_id']);
             if ($itemModel->require_production_number || $itemModel->require_expiry_date) {
                 if ($item['dna']) {
                     foreach ($item['dna'] as $dna) {
                         if ($dna['quantity'] > 0) {
+                            $options = [
+                                'expiry_date' => $dna['expiry_date'],
+                                'production_number' => $dna['production_number'],
+                            ];
+                            $warehouse = Warehouse::where('id', $data['warehouse_id'])->first();
+                            $stock = InventoryHelper::getCurrentStock($itemModel, convert_to_server_timezone($data['date']), $warehouse, $options);
+                            
                             $dnaItem = $item;
                             $dnaItem['quantity'] = $dna['quantity'];
                             $dnaItem['production_number'] = $dna['production_number'];
                             $dnaItem['expiry_date'] = $dna['expiry_date'];
-                            $dnaItem['stock'] = $dna['remaining'];
-                            $dnaItem['balance'] = $dna['remaining'] - $dna['quantity'];
+                            $dnaItem['stock'] = $stock;
+                            $dnaItem['balance'] = $stock - $dna['quantity'];
                             array_push($array, $dnaItem);
                         }
                     }
