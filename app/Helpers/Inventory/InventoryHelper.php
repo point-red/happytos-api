@@ -67,7 +67,7 @@ class InventoryHelper
         if ($quantity < 0) {
             $stock = self::getCurrentStock($item, $form->date, $warehouse, $options);
             if (abs($quantity) > $stock) {
-                throw new StockNotEnoughException($item);
+                throw new StockNotEnoughException($item, $options, $stock);
             }
         }
 
@@ -95,7 +95,6 @@ class InventoryHelper
     ])
     {
         Item::where('id', $item->id)->decrement('stock', $quantity * $converter);
-
         self::insert($form, $warehouse, $item, abs($quantity) * -1, $unit, $converter, $options);
     }
 
@@ -148,7 +147,7 @@ class InventoryHelper
             ->having('remaining', '>', 0);
 
         if ($item->require_expiry_date) {
-            $inventories = $inventories->where('expiry_date', convert_to_server_timezone($options['expiry_date']));
+            $inventories = $inventories->where('expiry_date', convert_to_server_timezone($options['expiry_date'], 'Asia/Jakarta'));
         }
 
         if ($item->require_production_number) {

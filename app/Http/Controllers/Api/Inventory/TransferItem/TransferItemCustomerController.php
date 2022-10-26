@@ -69,6 +69,23 @@ class TransferItemCustomerController extends Controller
                 ->load('warehouse')
                 ->load('items.item');
 
+            try {
+                if ($transferItemCustomer->form->approval_status === 0) {
+                    $transferItemCustomer->form->approval_by = auth()->user()->id;
+                    $transferItemCustomer->form->approval_at = now();
+                    $transferItemCustomer->form->approval_status = 1;
+                    $transferItemCustomer->form->save();
+                    TransferItemCustomer::updateInventory($transferItemCustomer->form, $transferItemCustomer);
+                    TransferItemCustomer::updateJournal($transferItemCustomer);
+                }
+            } catch (\Exception $e) {
+                DB::connection('tenant')->rollBack();
+                return response()->json([
+                    'code' => 422,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
             return new ApiResource($transferItemCustomer);
         });
 
@@ -99,23 +116,41 @@ class TransferItemCustomerController extends Controller
      */
     public function update(UpdateTransferItemCustomerRequest $request, $id)
     {
-        $transferItemCustomer = TransferItemCustomer::findOrFail($id);
+        try {
+            $transferItemCustomer = TransferItemCustomer::findOrFail($id);
 
-        $result = DB::connection('tenant')->transaction(function () use ($request, $transferItemCustomer) {
-            $transferItemCustomer->form->archive();
-            $request['number'] = $transferItemCustomer->form->edited_number;
-            $request['old_increment'] = $transferItemCustomer->form->increment;
+            $result = DB::connection('tenant')->transaction(function () use ($request, $transferItemCustomer) {
+                $transferItemCustomer->form->archive();
+                $request['number'] = $transferItemCustomer->form->edited_number;
+                $request['old_increment'] = $transferItemCustomer->form->increment;
 
-            $transferItemCustomer = TransferItemCustomer::create($request->all());
-            $transferItemCustomer
-                ->load('form')
-                ->load('warehouse')
-                ->load('items.item');
+                $transferItemCustomer = TransferItemCustomer::create($request->all());
+                $transferItemCustomer
+                    ->load('form')
+                    ->load('warehouse')
+                    ->load('items.item');
 
-            return new ApiResource($transferItemCustomer);
-        });
+                if ($transferItemCustomer->form->approval_status === 0) {
+                    $transferItemCustomer->form->approval_by = auth()->user()->id;
+                    $transferItemCustomer->form->approval_at = now();
+                    $transferItemCustomer->form->approval_status = 1;
+                    $transferItemCustomer->form->save();
+                    TransferItemCustomer::updateInventory($transferItemCustomer->form, $transferItemCustomer);
+                    TransferItemCustomer::updateJournal($transferItemCustomer);
+                }
 
-        return $result;
+                return new ApiResource($transferItemCustomer);
+            });
+
+            return $result;
+            
+        } catch (\Exception $e) {
+            DB::connection('tenant')->rollBack();
+            return response()->json([
+                'code' => 422,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**

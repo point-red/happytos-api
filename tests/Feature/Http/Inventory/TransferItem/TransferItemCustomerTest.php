@@ -118,7 +118,14 @@ class TransferItemCustomerTest extends TestCase
     /** @test */
     public function create_transfer_item_customer()
     {
-        $data = $this->dummyData();
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
 
         $response = $this->json('POST', self::$path, $data, $this->headers);
 
@@ -163,7 +170,14 @@ class TransferItemCustomerTest extends TestCase
 
         $transferItemCustomer = TransferItemCustomer::orderBy('id', 'asc')->first();
 
-        $data = $this->dummyData();
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
 
         $data["id"] = $transferItemCustomer->id;
 
