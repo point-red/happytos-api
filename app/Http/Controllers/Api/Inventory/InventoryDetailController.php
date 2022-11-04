@@ -20,9 +20,13 @@ class InventoryDetailController extends Controller
      */
     public function index(Request $request, $itemId)
     {
+        $dateFrom = convert_to_server_timezone($request->get('date_from'));
+        $dateTo = convert_to_server_timezone($request->get('date_to'));
+        
         $inventories = Inventory::from(Inventory::getTableName() . ' as ' . Inventory::$alias)->eloquentFilter($request)
             ->join(Form::getTableName() . ' as ' . Form::$alias, Form::$alias . '.id', '=', Inventory::$alias . '.form_id')
-            ->where('inventory.item_id', $itemId);
+            ->where('inventory.item_id', $itemId)
+            ->whereBetween('form.date', [$dateFrom, $dateTo]);
 
         if ($request->has('warehouse_id')) {
             $inventories = $inventories->where('inventory.warehouse_id', $request->get('warehouse_id'));
