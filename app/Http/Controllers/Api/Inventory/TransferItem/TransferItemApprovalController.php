@@ -60,20 +60,30 @@ class TransferItemApprovalController extends Controller
      */
     public function approve(Request $request, $id)
     {
-        DB::connection('tenant')->beginTransaction();
-    
-        $transferItem = TransferItem::findOrFail($id);
-        if ($transferItem->form->approval_status === 0) {
-            $transferItem->form->approval_by = auth()->user()->id;
-            $transferItem->form->approval_at = now();
-            $transferItem->form->approval_status = 1;
-            $transferItem->form->save();
+        try {    
+            
+            DB::connection('tenant')->beginTransaction();
 
-            TransferItem::updateInventory($transferItem->form, $transferItem);
-            TransferItem::updateJournal($transferItem);
+            $transferItem = TransferItem::findOrFail($id);
+            if ($transferItem->form->approval_status === 0) {
+                $transferItem->form->approval_by = auth()->user()->id;
+                $transferItem->form->approval_at = now();
+                $transferItem->form->approval_status = 1;
+                $transferItem->form->save();
+
+                TransferItem::updateInventory($transferItem->form, $transferItem);
+                TransferItem::updateJournal($transferItem);
+            }
+
+            DB::connection('tenant')->commit();
+
+        } catch (\Exception $e) {
+            DB::connection('tenant')->rollBack();
+            return response()->json([
+                'code' => 422,
+                'message' => $e->getMessage(),
+            ], 422);
         }
-
-        DB::connection('tenant')->commit();
 
         return new ApiResource($transferItem);
     }

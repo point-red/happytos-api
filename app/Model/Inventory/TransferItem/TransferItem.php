@@ -85,7 +85,7 @@ class TransferItem extends TransactionModel
         $transferItem = new self;
         $transferItem->fill($data);
 
-        $items = self::mapItems($data['items'] ?? []);
+        $items = self::mapItems($data['items'] ?? [], $data);
 
         $transferItem->save();
 
@@ -97,7 +97,7 @@ class TransferItem extends TransactionModel
         return $transferItem;
     }
 
-    private static function mapItems($items)
+    private static function mapItems($items, $data)
     {
         $array = [];
         foreach ($items as $item) {
@@ -106,12 +106,19 @@ class TransferItem extends TransactionModel
                 if ($item['dna']) {
                     foreach ($item['dna'] as $dna) {
                         if ($dna['quantity'] > 0) {
+                            $options = [
+                                'expiry_date' => $dna['expiry_date'],
+                                'production_number' => $dna['production_number'],
+                            ];
+                            $warehouse = Warehouse::where('id', $data['warehouse_id'])->first();
+                            $stock = InventoryHelper::getCurrentStock($itemModel, convert_to_server_timezone($data['date']), $warehouse, $options);
+                            
                             $dnaItem = $item;
                             $dnaItem['quantity'] = $dna['quantity'];
                             $dnaItem['production_number'] = $dna['production_number'];
                             $dnaItem['expiry_date'] = $dna['expiry_date'];
                             $dnaItem['stock'] = $dna['remaining'];
-                            $dnaItem['balance'] = $dna['remaining'] - $dna['quantity'];
+                            $dnaItem['balance'] = $stock - $dna['quantity'];
                             array_push($array, $dnaItem);
                         }
                     }

@@ -6,6 +6,7 @@ Route::prefix('inventory')->namespace('Inventory')->group(function () {
     Route::get('inventory-details/{itemId}', 'InventoryDetailController@index');
     Route::get('inventory-dna/{itemId}', 'InventoryDnaController@index');
     Route::get('inventory-dna/{itemId}/all', 'InventoryDnaController@allDna');
+    Route::get('inventory-dna/{itemId}/edit', 'InventoryDnaController@editDna');
     Route::get('inventory-warehouse-currentstock', 'InventoryWarehouseCurrentStockController@index');
     Route::apiResource('audits', 'InventoryAudit\\InventoryAuditController');
     Route::apiResource('usages', 'InventoryUsage\\InventoryUsageController');
