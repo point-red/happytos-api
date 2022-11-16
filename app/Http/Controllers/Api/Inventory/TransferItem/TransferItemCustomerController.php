@@ -11,6 +11,8 @@ use App\Model\Inventory\TransferItem\TransferItemCustomer;
 use App\Helpers\Inventory\InventoryHelper;
 use App\Helpers\Journal\JournalHelper;
 use App\Exports\TransferItem\TransferItemCustomerSendExport;
+use App\Http\Requests\Inventory\TransferItem\DeleteTransferItemRequest;
+use App\Http\Requests\Inventory\TransferItem\ReadTransferItemRequest;
 use App\Model\CloudStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -23,10 +25,11 @@ class TransferItemCustomerController extends Controller
     /**
      * Display a listing of the resource.
      *
+     * @param ReadTransferItemRequest $request
      * @param Request $request
      * @return ApiCollection
      */
-    public function index(Request $request)
+    public function index(ReadTransferItemRequest $request)
     {
         $transferItemCustomers = TransferItemCustomer::from(TransferItemCustomer::getTableName().' as '.TransferItemCustomer::$alias)->eloquentFilter($request);
         
@@ -62,14 +65,14 @@ class TransferItemCustomerController extends Controller
      */
     public function store(StoreTransferItemCustomerRequest $request)
     {
-        $result = DB::connection('tenant')->transaction(function () use ($request) {
-            $transferItemCustomer = TransferItemCustomer::create($request->all());
-            $transferItemCustomer
-                ->load('form')
-                ->load('warehouse')
-                ->load('items.item');
-
-            try {
+        try {
+            $result = DB::connection('tenant')->transaction(function () use ($request) {
+                $transferItemCustomer = TransferItemCustomer::create($request->all());
+                $transferItemCustomer
+                    ->load('form')
+                    ->load('warehouse')
+                    ->load('items.item');
+    
                 if ($transferItemCustomer->form->approval_status === 0) {
                     $transferItemCustomer->form->approval_by = auth()->user()->id;
                     $transferItemCustomer->form->approval_at = now();
@@ -78,28 +81,31 @@ class TransferItemCustomerController extends Controller
                     TransferItemCustomer::updateInventory($transferItemCustomer->form, $transferItemCustomer);
                     TransferItemCustomer::updateJournal($transferItemCustomer);
                 }
-            } catch (\Exception $e) {
-                DB::connection('tenant')->rollBack();
-                return response()->json([
-                    'code' => 422,
-                    'message' => $e->getMessage(),
-                ], 422);
-            }
-
-            return new ApiResource($transferItemCustomer);
-        });
-
-        return $result;
+                
+    
+                return new ApiResource($transferItemCustomer);
+            });
+    
+            return $result;
+            
+        } catch (\Exception $e) {
+            DB::connection('tenant')->rollBack();
+            return response()->json([
+                'code' => 422,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**
      * Display the specified resource.
      *
+     * @param ReadTransferItemRequest $request
      * @param Request $request
      * @param $id
      * @return ApiResource
      */
-    public function show(Request $request, $id)
+    public function show(ReadTransferItemRequest $request, $id)
     {
         $transferItemCustomer = TransferItemCustomer::eloquentFilter($request)->findOrFail($id);
 
@@ -156,11 +162,12 @@ class TransferItemCustomerController extends Controller
     /**
      * Remove the specified resource from storage.
      *
+     * @param DeleteTransferItemRequest $request
      * @param Request $request
      * @param  int $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy(Request $request, $id)
+    public function destroy(DeleteTransferItemRequest $request, $id)
     {
         DB::connection('tenant')->beginTransaction();
 

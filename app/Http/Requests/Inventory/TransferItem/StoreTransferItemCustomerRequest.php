@@ -14,6 +14,10 @@ class StoreTransferItemCustomerRequest extends FormRequest
      */
     public function authorize()
     {
+        if (! tenant(auth()->user()->id)->hasPermissionTo('create transfer item')) {
+            return false;
+        }
+        
         return true;
     }
 
@@ -33,6 +37,7 @@ class StoreTransferItemCustomerRequest extends FormRequest
             'plat' => 'required|string',
             'stnk' => 'required|string',
             'phone' => 'required|string',
+            'notes' => 'nullable|string|max:255',
 
             'items' => 'required_without:services|array',
         ];

@@ -2,122 +2,156 @@
 
 namespace Tests\Feature\Http\Inventory\TransferItem;
 
-use App\Imports\Template\ChartOfAccountImport;
 use App\Model\Master\Item;
-use App\Model\Master\User as TenantUser;
-use App\Model\Master\Warehouse;
-use App\Model\Master\Customer;
-use App\Model\Master\Expedition;
 use App\Model\Accounting\ChartOfAccount;
-use App\Model\Form;
 use App\Model\Inventory\TransferItem\TransferItemCustomer;
-use App\Helpers\Inventory\InventoryHelper;
-use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
 
 class TransferItemCustomerTest extends TestCase
 {
+    use TransferItemCustomerSetup;
+    
     public static $path = '/api/v1/inventory/transfer-item-customers';
 
-    public function setUp(): void
+    
+    /** @test */
+    public function branch_not_default_create_transfer_item_customer()
     {
-        parent::setUp();
-
-        $this->signIn();
-        $this->setProject();
-        $this->importChartOfAccount();
-    }
-
-    private function importChartOfAccount()
-    {
-        Excel::import(new ChartOfAccountImport(), storage_path('template/chart_of_accounts_manufacture.xlsx'));
-
-
-        $this->artisan('db:seed', [
-            '--database' => 'tenant',
-            '--class' => 'SettingJournalSeeder',
-            '--force' => true,
-        ]);
-    }
-
-    public function dummyData($item = null)
-    {
-        if (!$item) {
-            $item = factory(Item::class)->create();
-        }
-
-        $warehouse = factory(Warehouse::class)->create();
-
-        $customer = factory(Customer::class)->create();
-        $expedition = factory(Expedition::class)->create();
-
-        $user = new TenantUser;
-        $user->name = $this->faker->name;
-        $user->address = $this->faker->address;
-        $user->phone = $this->faker->phoneNumber;
-        $user->email = $this->faker->email;
-        $user->save();
-
-        $form = new Form;
-        $form->date = now()->toDateTimeString();
-        $form->created_by = $this->user->id;
-        $form->updated_by = $this->user->id;
-        $form->save();
-
-        $options = [];
-        if ($item->require_expiry_date) {
-            $options['expiry_date'] = $item->expiry_date;
-        }
-        if ($item->require_production_number) {
-            $options['production_number'] = $item->production_number;
-        }
-
-        $options['quantity_reference'] = $item->quantity;
-        $options['unit_reference'] = $item->unit;
-        $options['converter_reference'] = $item->converter;
-
-        InventoryHelper::increase($form, $warehouse, $item, 100, "PCS", 1, $options);
+        $this->setCreatePermission();
         
-        $data = [
-            "date" => now()->timezone('Asia/Jakarta')->toDateTimeString(),
-            "increment_group" => date("Ym"),
-            "notes" => "Some notes",
-            "warehouse_id" => $warehouse->id,
-            "customer_id" => $customer->id,
-            "expedition_id" => $expedition->id,
-            "plat" => "AB 123 H",
-            "stnk" => "83723",
-            "phone" => "085847837473",
-            "request_approval_to" => $user->id,
-            "items" => [
-                [
-                    "item_id" => $item->id,
-                    "item_name" => $item->name,
-                    "unit" => "PCS",
-                    "converter" => 1,
-                    "quantity" => 10,
-                    "stock" => 100,
-                    "balance" => 80,
-                    "warehouse_id" => $warehouse->id,
-                    'dna' => [
-                        [
-                            "quantity" => 10,
-                            "item_id" => $item->id,
-                            "expiry_date" => date('Y-m-d', strtotime('1 year')),
-                            "production_number" => "sample",
-                            "remaining" => 100,
-                        ]
-                    ]
-                ]
-            ]
-        ];
+        $data = $this->dummyData();
 
-        return $data;
+        $this->unsetDefaultBranch();
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'please set default branch to save this form',
+            ]);
+    }
+    
+    /** @test */
+    public function unauthorized_create_transfer_item_customer()
+    {
+        $data = $this->dummyData();
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(403)
+            ->assertJson([
+                "code" => 403,
+                "message" => "This action is unauthorized."
+            ]);
     }
 
     /** @test */
-    public function create_transfer_item_customer()
+    public function invalid_required_data_create_transfer_item_customer()
     {
+        $this->setCreatePermission();
+        
+        $data = $this->dummyData();
+
+        $data = data_set($data, 'date', null);
+        $data = data_set($data, 'request_approval_to', null);
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid."
+            ]);
+    }
+    
+    /** @test */
+    public function invalid_data_item_create_transfer_item_customer()
+    {
+        $this->setCreatePermission();
+        
+        $data = $this->dummyData();
+
+        $data = data_set($data, 'items.0.item_id', 100);
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid."
+            ]);
+    }
+    
+    /** @test */
+    public function invalid_data_warehouse_create_transfer_item_customer()
+    {
+        $this->setCreatePermission();
+        
+        $data = $this->dummyData();
+
+        $data = data_set($data, 'warehouse_id', 100);
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid."
+            ]);
+    }
+    
+    /** @test */
+    public function invalid_data_notes_create_transfer_item_customer()
+    {
+        $this->setCreatePermission();
+        
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $data = data_set($data, 'notes', $this->faker->text(500));
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid."
+            ]);
+    }
+
+    /** @test */
+    public function replace_first_and_last_space_in_notes_create_transfer_item_customer()
+    {
+        $this->setCreatePermission();
+        
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $data = data_set($data, 'notes', ' Transfer item notes ');
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $this->assertEquals($response->json('data.form.notes'), 'Transfer item notes');
+    }
+
+    /** @test */
+    public function check_current_stock_create_transfer_item_customer()
+    {
+        $this->setCreatePermission();
+        
         $coa = ChartOfAccount::orderBy('id', 'desc')->first();
         
         $item = new Item;
@@ -129,13 +163,160 @@ class TransferItemCustomerTest extends TestCase
 
         $response = $this->json('POST', self::$path, $data, $this->headers);
 
-        $response->assertStatus(201);
+        $this->assertEquals($response->json('data.items.0.stock'), $data['items'][0]['stock']);
+    }
+
+    /** @test */
+    public function check_final_balance_create_transfer_item_customer()
+    {
+        $this->setCreatePermission();
+        
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $this->assertEquals($response->json('data.items.0.balance'), $data['items'][0]['stock'] - $data['items'][0]['quantity']);
+    }
+
+    /** @test */
+    public function stock_not_enough_create_transfer_item_customer()
+    {
+        $this->setCreatePermission();
+        
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $data = data_set($data, 'items.0.quantity', 200);
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "Stock ". $item->name ." not enough! Current stock = 100 "
+            ]);
+    }
+    
+    /** @test */
+    public function success_create_transfer_item_customer()
+    {
+        $this->setCreatePermission();
+        
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $items = [];
+        foreach ($data['items'] as $item) {
+            array_push($items, [
+                "transfer_item_customer_id" => $response->json('data.id'),
+                "item_id" => $item['item_id'],
+                "item_name" => $item['item_name'],
+                "unit" => $item['unit'],
+                "converter" => $item['converter'],
+                "quantity" => $item['quantity'],
+                "stock" => $item['stock'],
+                "balance" => $item['balance']
+            ]);
+        }
+        
+        $response->assertStatus(201)
+            ->assertJson([
+                "data" => [
+                    "id" => $response->json('data.id'),
+                    "warehouse_id" => $data['warehouse_id'],
+                    "customer_id" => $data['customer_id'],
+                    "expedition_id" => $data['expedition_id'],
+                    "plat" => $data['plat'],
+                    "stnk" => $data['stnk'],
+                    "phone" => $data['phone'],
+                    "form" => [
+                        "id" => $response->json('data.form.id'),
+                        "date" => $data['date'],
+                        "number" => $response->json('data.form.number'),
+                        "request_approval_to" => $data['request_approval_to'],
+                        "approval_status" => 1,
+                        "notes" => $data['notes'],
+                    ],
+                    "items" => $items
+                ]
+            ]);
+
+        $this->assertDatabaseHas('forms', [
+            'id' => $response->json('data.form.id'),
+            'number' => $response->json('data.form.number'),
+            'approval_status' => 1,
+            'done' => 0,
+        ], 'tenant');
+
+        $this->assertDatabaseHas('transfer_item_customers', [
+            'id' => $response->json('data.id'),
+            "warehouse_id" => $data['warehouse_id'],
+            "customer_id" => $data['customer_id'],
+            "expedition_id" => $data['expedition_id'],
+            "plat" => $data['plat'],
+            "stnk" => $data['stnk'],
+            "phone" => $data['phone'],
+        ], 'tenant');
+
+        foreach ($data['items'] as $item) {
+            $this->assertDatabaseHas('transfer_item_customer_items', [
+                "item_id" => $item['item_id'],
+                "item_name" => $item['item_name'],
+                "unit" => $item['unit'],
+                "converter" => $item['converter'],
+                "quantity" => $item['quantity'],
+                "stock" => $item['stock'],
+                "balance" => $item['balance']
+            ], 'tenant');
+        }
+
+        $transferItemCustomer = TransferItemCustomer::where('id', $response->json('data.id'))->first();
+        
+        foreach ($transferItemCustomer->items as $transferItemItem) {
+            $itemAmount = $transferItemItem->item->cogs($transferItemItem->item_id) * $transferItemItem->quantity;
+            $this->assertDatabaseHas('journals', [
+                'form_id' => $transferItemCustomer->form->id,
+                'journalable_type' => 'Item',
+                'journalable_id' => $transferItemItem->item_id,
+                'chart_of_account_id' => get_setting_journal('transfer item', 'inventory in distribution'),
+                'debit' => $itemAmount
+            ], 'tenant');
+            
+            $this->assertDatabaseHas('journals', [
+                'form_id' => $transferItemCustomer->form->id,
+                'journalable_type' => 'Item',
+                'journalable_id' => $transferItemItem->item_id,
+                'chart_of_account_id' => $transferItemItem->item->chart_of_account_id,
+                'credit' => $itemAmount
+            ], 'tenant');
+        }
     }
 
     /**
      * @test 
      */
-    public function read_all_transfer_item_customer()
+    public function unauthorized_read_all_transfer_item_customer()
     {
         $response = $this->json('GET', self::$path, [
             'join' => 'form,items,item',
@@ -144,31 +325,303 @@ class TransferItemCustomerTest extends TestCase
             'sort_by' => '-form.number',
         ], $this->headers);
 
-        $response->assertStatus(200);
+        $response->assertStatus(403)
+            ->assertJson([
+                "code" => 403,
+                "message" => "This action is unauthorized."
+            ]);
     }
 
     /**
      * @test 
      */
-    public function read_single_transfer_item_customer()
+    public function success_read_all_transfer_item_customer()
     {
-        $this->create_transfer_item_customer();
+        $this->setReadPermission();
 
-        $transferItemCustomer = TransferItemCustomer::orderBy('id', 'asc')->first();
+        $this->createTransferItemCustomer();
+
+        $transferItemCustomers = TransferItemCustomer::get();
+        $transferItemCustomers = $transferItemCustomers->sortByDesc(function($q){
+            return $q->form->number;
+        });
+        
+        $response = $this->json('GET', self::$path, [
+            'join' => 'form,items,item',
+            'fields' => 'transfer_sent_customer.*',
+            'group_by' => 'form.id',
+            'sort_by' => '-form.number',
+            'includes' => 'items;form'
+        ], $this->headers);
+
+        $data = [];
+        foreach ($transferItemCustomers as $transferItemCustomer) {
+            $items = [];
+            foreach ($transferItemCustomer->items as $item) {
+                array_push($items, [
+                    "id" => $item->id,
+                    "transfer_item_customer_id" => $item->transfer_item_customer_id,
+                    "item_id" => $item->item_id,
+                    "item_name" => $item->item_name,
+                    "unit" => $item->unit,
+                    "converter" => $item->converter,
+                    "quantity" => $item->quantity,
+                    "stock" => $item->stock,
+                    "balance" => $item->balance
+                ]);
+            }
+            array_push($data, [
+                "id" => $transferItemCustomer->id,
+                "warehouse_id" => $transferItemCustomer->warehouse_id,
+                "customer_id" => $transferItemCustomer->customer_id,
+                "expedition_id" => $transferItemCustomer->expedition_id,
+                "plat" => $transferItemCustomer->plat,
+                "stnk" => $transferItemCustomer->stnk,
+                "phone" => $transferItemCustomer->phone,
+                "form" => [
+                    "id" => $transferItemCustomer->form->id,
+                    "date" => $transferItemCustomer->form->date,
+                    "number" => $transferItemCustomer->form->number,
+                    "notes" => $transferItemCustomer->form->notes,
+                ],
+                "items" => $items
+            ]);
+        };
+
+        $response->assertStatus(200)
+            ->assertJson([
+                "data" => $data
+            ]);
+    }
+
+    /**
+     * @test 
+     */
+    public function unauthorized_read_single_transfer_item_customer()
+    {   
+        $transferItemCustomer = $this->createTransferItemCustomer();
+
+        $response = $this->json('GET', self::$path.'/'.$transferItemCustomer->id, [
+            'includes' => 'warehouse;to_warehouse;items.item;form.createdBy;form.requestApprovalTo;form.branch'
+        ], $this->headers);
+        
+        $response->assertStatus(403)
+            ->assertJson([
+                "code" => 403,
+                "message" => "This action is unauthorized."
+            ]);
+    }
+    
+    /**
+     * @test 
+     */
+    public function success_read_single_transfer_item_customer()
+    {
+        $this->setReadPermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
 
         $response = $this->json('GET', self::$path.'/'.$transferItemCustomer->id, [
             'includes' => 'warehouse;customer;expedition;items.item;form.createdBy;form.requestApprovalTo;form.branch'
         ], $this->headers);
         
-        $response->assertStatus(200);
+        $items = [];
+        foreach ($transferItemCustomer->items as $item) {
+            array_push($items, [
+                "id" => $item->id,
+                "transfer_item_customer_id" => $item->transfer_item_customer_id,
+                "item_id" => $item->item_id,
+                "item_name" => $item->item_name,
+                "unit" => $item->unit,
+                "converter" => $item->converter,
+                "quantity" => $item->quantity,
+                "stock" => $item->stock,
+                "balance" => $item->balance
+            ]);
+        }
+        
+        $response->assertStatus(200)
+            ->assertJson([
+                "data" => [
+                    "id" => $transferItemCustomer->id,
+                    "warehouse_id" => $transferItemCustomer->warehouse_id,
+                    "customer_id" => $transferItemCustomer->customer_id,
+                    "expedition_id" => $transferItemCustomer->expedition_id,
+                    "plat" => $transferItemCustomer->plat,
+                    "stnk" => $transferItemCustomer->stnk,
+                    "phone" => $transferItemCustomer->phone,
+                    "form" => [
+                        "id" => $transferItemCustomer->form->id,
+                        "date" => $transferItemCustomer->form->date,
+                        "number" => $transferItemCustomer->form->number,
+                        "notes" => $transferItemCustomer->form->notes,
+                    ],
+                    "items" => $items
+                ]
+            ]);
     }
 
     /** @test */
-    public function update_transfer_item_customer()
-    {
-        $this->create_transfer_item_customer();
+    public function unauthorized_update_transfer_item_customer()
+    {   
+        $transferItemCustomer = $this->createTransferItemCustomer();
 
-        $transferItemCustomer = TransferItemCustomer::orderBy('id', 'asc')->first();
+        $data = $this->dummyData();
+
+        $data["id"] = $transferItemCustomer->id;
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
+        
+        $response->assertStatus(403)
+            ->assertJson([
+                "code" => 403,
+                "message" => "This action is unauthorized."
+            ]);
+    }
+
+    /** @test */
+    public function invalid_required_data_update_transfer_item_customer()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
+
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $data["id"] = $transferItemCustomer->id;
+        $data = data_set($data, 'date', null);
+        $data = data_set($data, 'request_approval_to', null);
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid."
+            ]);
+    }
+    
+    /** @test */
+    public function invalid_data_item_update_transfer_item_customer()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
+
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $data["id"] = $transferItemCustomer->id;
+        $data = data_set($data, 'items.0.item_id', 100);
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid."
+            ]);
+    }
+    
+    /** @test */
+    public function invalid_data_warehouse_update_transfer_item_customer()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
+
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $data["id"] = $transferItemCustomer->id;
+        $data = data_set($data, 'warehouse_id', 100);
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid."
+            ]);
+    }
+    
+    /** @test */
+    public function invalid_data_notes_update_transfer_item_customer()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
+
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $data["id"] = $transferItemCustomer->id;
+        $data = data_set($data, 'notes', $this->faker->text(500));
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid."
+            ]);
+    }
+
+    /** @test */
+    public function replace_first_and_last_space_in_notes_update_transfer_item_customer()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
+
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $data["id"] = $transferItemCustomer->id;
+        $data = data_set($data, 'notes', ' Transfer item notes ');
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
+
+        $this->assertEquals($response->json('data.form.notes'), 'Transfer item notes');
+    }
+
+    /** @test */
+    public function check_current_stock_update_transfer_item_customer()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
 
         $coa = ChartOfAccount::orderBy('id', 'desc')->first();
         
@@ -183,26 +636,16 @@ class TransferItemCustomerTest extends TestCase
 
         $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
 
-        $response->assertStatus(201);
+        $this->assertEquals($response->json('data.items.0.stock'), $data['items'][0]['stock']);
     }
 
     /** @test */
-    public function delete_transfer_item_customer()
+    public function check_final_balance_update_transfer_item_customer()
     {
-        $this->create_transfer_item_customer();
+        $this->setUpdatePermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
 
-        $transferItemCustomer = TransferItemCustomer::orderBy('id', 'asc')->first();
-
-        $response = $this->json('DELETE', self::$path.'/'.$transferItemCustomer->id, [], [$this->headers]);
-
-        $response->assertStatus(204);
-    }
-
-    /**
-     * @test 
-     */
-    public function approve_transfer_item_customer()
-    {
         $coa = ChartOfAccount::orderBy('id', 'desc')->first();
         
         $item = new Item;
@@ -212,24 +655,22 @@ class TransferItemCustomerTest extends TestCase
 
         $data = $this->dummyData($item);
 
-        $this->json('POST', self::$path, $data, $this->headers);
+        $data["id"] = $transferItemCustomer->id;
 
-        $transferItemCustomer = TransferItemCustomer::orderBy('id', 'asc')->first();
+        $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
 
-        $response = $this->json('POST', self::$path.'/'.$transferItemCustomer->id.'/approve', [
-            'id' => $transferItemCustomer->id
-        ], $this->headers);
-        
-        $response->assertStatus(200);
+        $this->assertEquals($response->json('data.items.0.balance'), $data['items'][0]['stock'] - $data['items'][0]['quantity']);
     }
 
-    /**
-     * @test 
-     */
-    public function cancellation_transfer_item_customer()
+    /** @test */
+    public function stock_not_enough_update_transfer_item_customer()
     {
-        $coa = ChartOfAccount::orderBy('id', 'asc')->first();
+        $this->setUpdatePermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
 
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
         $item = new Item;
         $item->name = $this->faker->name;
         $item->chart_of_account_id = $coa->id;
@@ -237,21 +678,156 @@ class TransferItemCustomerTest extends TestCase
 
         $data = $this->dummyData($item);
 
-        $this->json('POST', self::$path, $data, $this->headers);
+        $data["id"] = $transferItemCustomer->id;
+        $data = data_set($data, 'items.0.quantity', 200);
 
-        $transferItemCustomer = TransferItemCustomer::orderBy('id', 'desc')->first();
+        $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
 
-        $response = $this->json('POST', self::$path.'/'.$transferItemCustomer->id.'/cancellation-approve', [], $this->headers);
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "Stock ". $item->name ." not enough! Current stock = 100 "
+            ]);
+    }
+
+    /** @test */
+    public function success_update_transfer_item_customer()
+    {
+        $this->setUpdatePermission();
         
-        $response->assertStatus(200);
+        $transferItemCustomer = $this->createTransferItemCustomer();
+
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $data["id"] = $transferItemCustomer->id;
+        $data["notes"] = "Edit notes";
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItemCustomer->id, $data, [$this->headers]);
+
+        $items = [];
+        foreach ($data['items'] as $item) {
+            array_push($items, [
+                "transfer_item_customer_id" => $response->json('data.id'),
+                "item_id" => $item['item_id'],
+                "item_name" => $item['item_name'],
+                "unit" => $item['unit'],
+                "converter" => $item['converter'],
+                "quantity" => $item['quantity'],
+                "stock" => $item['stock'],
+                "balance" => $item['balance']
+            ]);
+        }
+        
+        $response->assertStatus(201)
+            ->assertJson([
+                "data" => [
+                    "id" => $response->json('data.id'),
+                    "warehouse_id" => $data['warehouse_id'],
+                    "customer_id" => $data['customer_id'],
+                    "expedition_id" => $data['expedition_id'],
+                    "plat" => $data['plat'],
+                    "stnk" => $data['stnk'],
+                    "phone" => $data['phone'],
+                    "form" => [
+                        "id" => $response->json('data.form.id'),
+                        "date" => $data['date'],
+                        "number" => $response->json('data.form.number'),
+                        "request_approval_to" => $data['request_approval_to'],
+                        "approval_status" => 1,
+                        "notes" => $data['notes'],
+                    ],
+                    "items" => $items
+                ]
+            ]);
+        
+        $this->assertDatabaseHas('forms', [
+            'id' => $transferItemCustomer->form->id,
+            'number' => null,
+            'edited_number' => $response->json('data.form.number'),
+            'notes' => $transferItemCustomer->form->notes,
+            'approval_status' => 1,
+            'done' => 0,
+        ], 'tenant');
+
+        $this->assertDatabaseHas('forms', [
+            'id' => $response->json('data.form.id'),
+            'number' => $response->json('data.form.number'),
+            'edited_number' => null,
+            'notes' => $data["notes"],
+            'approval_status' => 1,
+            'done' => 0,
+        ], 'tenant');
+
+        $transferItemCustomer = TransferItemCustomer::where('id', $response->json('data.id'))->first();
+        
+        foreach ($transferItemCustomer->items as $transferItemItem) {
+            $itemAmount = $transferItemItem->item->cogs($transferItemItem->item_id) * $transferItemItem->quantity;
+            $this->assertDatabaseHas('journals', [
+                'form_id' => $transferItemCustomer->form->id,
+                'journalable_type' => 'Item',
+                'journalable_id' => $transferItemItem->item_id,
+                'chart_of_account_id' => get_setting_journal('transfer item', 'inventory in distribution'),
+                'debit' => $itemAmount
+            ], 'tenant');
+            
+            $this->assertDatabaseHas('journals', [
+                'form_id' => $transferItemCustomer->form->id,
+                'journalable_type' => 'Item',
+                'journalable_id' => $transferItemItem->item_id,
+                'chart_of_account_id' => $transferItemItem->item->chart_of_account_id,
+                'credit' => $itemAmount
+            ], 'tenant');
+        }
+    }
+
+    /** @test */
+    public function unauthorized_delete_transfer_item_customer()
+    {
+        $transferItemCustomer = $this->createTransferItemCustomer();
+
+        $response = $this->json('DELETE', self::$path.'/'.$transferItemCustomer->id, [], [$this->headers]);
+
+        $response->assertStatus(403)
+            ->assertJson([
+                "code" => 403,
+                "message" => "This action is unauthorized."
+            ]);
+    }
+
+    /** @test */
+    public function success_delete_transfer_item_customer()
+    {
+        $this->setDeletePermission();
+        
+        $transferItemCustomer = $this->createTransferItemCustomer();
+
+        $reason = $this->faker->text(200);
+        
+        $response = $this->json('DELETE', self::$path.'/'.$transferItemCustomer->id, ['reason' => $reason], [$this->headers]);
+
+        $response->assertStatus(204);
+
+        $this->assertDatabaseHas('forms', [
+            'id' => $transferItemCustomer->form->id,
+            'number' => $transferItemCustomer->form->number,
+            'request_cancellation_to' => $transferItemCustomer->form->request_approval_to,
+            'request_cancellation_by' => $this->user->id,
+            'request_cancellation_reason' => $reason,
+            'cancellation_status' => 0,
+        ], 'tenant');
     }
 
     /** @test */
     public function export_transfer_item_customer()
     {
-        $this->create_transfer_item_customer();
-
-        $transferItemCustomer = TransferItemCustomer::orderBy('id', 'asc')->first();
+        $transferItemCustomer = $this->createTransferItemCustomer();
 
         $data = [
             "data" => [
@@ -264,6 +840,6 @@ class TransferItemCustomerTest extends TestCase
 
         $response = $this->json('POST', self::$path.'/export', $data, $this->headers);
         
-        $response->assertStatus(200);
+        $response->assertStatus(200)->assertJsonStructure([ 'data' => ['url'] ]);
     }
 }
