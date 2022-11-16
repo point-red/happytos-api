@@ -147,7 +147,7 @@ class InventoryHelper
             ->having('remaining', '>', 0);
 
         if ($item->require_expiry_date) {
-            $inventories = $inventories->where('expiry_date', convert_to_server_timezone($options['expiry_date'], 'Asia/Jakarta'));
+            $inventories = $inventories->where('expiry_date', convert_to_server_timezone($options['expiry_date']));
         }
 
         if ($item->require_production_number) {

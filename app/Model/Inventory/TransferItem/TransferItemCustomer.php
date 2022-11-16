@@ -90,22 +90,17 @@ class TransferItemCustomer extends TransactionModel
                 if ($item['dna']) {
                     foreach ($item['dna'] as $dna) {
                         if ($dna['quantity'] > 0) {
-                            $options = [
-                                'expiry_date' => $dna['expiry_date'],
-                                'production_number' => $dna['production_number'],
-                            ];
-                            $warehouse = Warehouse::where('id', $data['warehouse_id'])->first();
-                            $stock = InventoryHelper::getCurrentStock($itemModel, convert_to_server_timezone($data['date']), $warehouse, $options);
-                            
                             $dnaItem = $item;
                             $dnaItem['quantity'] = $dna['quantity'];
                             $dnaItem['production_number'] = $dna['production_number'];
                             $dnaItem['expiry_date'] = $dna['expiry_date'];
-                            $dnaItem['stock'] = $stock;
-                            $dnaItem['balance'] = $stock - $dna['quantity'];
+                            $dnaItem['stock'] = $dna['remaining'];
+                            $dnaItem['balance'] = $dna['remaining'] - $dna['quantity'];
                             array_push($array, $dnaItem);
                         }
                     }
+                } else {
+                    abort(422, 'DNA item cannot be empty!');
                 }
             } else {
                 array_push($array, $item);
