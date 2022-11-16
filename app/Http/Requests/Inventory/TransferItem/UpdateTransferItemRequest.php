@@ -14,6 +14,10 @@ class UpdateTransferItemRequest extends FormRequest
      */
     public function authorize()
     {
+        if (! tenant(auth()->user()->id)->hasPermissionTo('update transfer item')) {
+            return false;
+        }
+        
         return true;
     }
 
@@ -30,6 +34,7 @@ class UpdateTransferItemRequest extends FormRequest
             'warehouse_id' => ValidationRule::foreignKey('warehouses'),
             'to_warehouse_id' => ValidationRule::foreignKey('warehouses'),
             'driver' => 'required|string',
+            'notes' => 'nullable|string|max:255',
 
             'items' => 'required_without:services|array',
         ];

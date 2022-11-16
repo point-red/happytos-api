@@ -11,6 +11,7 @@ use App\Model\UserActivity;
 use App\Model\Token;
 use App\Helpers\Inventory\InventoryHelper;
 use App\Helpers\Journal\JournalHelper;
+use App\Http\Requests\Inventory\TransferItem\ApproveTransferItemRequest;
 use App\Model\Master\User;
 use App\Mail\TransferItemApprovalRequestSent;
 use Illuminate\Support\Facades\DB;
@@ -54,11 +55,12 @@ class TransferItemApprovalController extends Controller
     }
     
     /**
+     * @param ApproveTransferItemRequest $request
      * @param Request $request
      * @param $id
      * @return ApiResource
      */
-    public function approve(Request $request, $id)
+    public function approve(ApproveTransferItemRequest $request, $id)
     {
         try {    
             
@@ -89,11 +91,12 @@ class TransferItemApprovalController extends Controller
     }
 
     /**
+     * @param ApproveTransferItemRequest $request
      * @param Request $request
      * @param $id
      * @return ApiResource
      */
-    public function reject(Request $request, $id)
+    public function reject(ApproveTransferItemRequest $request, $id)
     {
         $transferItem = TransferItem::findOrFail($id);
         $transferItem->form->approval_by = auth()->user()->id;

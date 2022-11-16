@@ -9,6 +9,9 @@ use App\Http\Resources\ApiCollection;
 use App\Http\Resources\ApiResource;
 use App\Model\Inventory\TransferItem\TransferItem;
 use App\Exports\TransferItem\TransferItemSendExport;
+use App\Http\Requests\Inventory\TransferItem\CloseTransferItemRequest;
+use App\Http\Requests\Inventory\TransferItem\DeleteTransferItemRequest;
+use App\Http\Requests\Inventory\TransferItem\ReadTransferItemRequest;
 use App\Model\CloudStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -21,10 +24,11 @@ class TransferItemController extends Controller
     /**
      * Display a listing of the resource.
      *
+     * @param ReadTransferItemRequest $request
      * @param Request $request
      * @return ApiCollection
      */
-    public function index(Request $request)
+    public function index(ReadTransferItemRequest $request)
     {
         $transferItems = TransferItem::from(TransferItem::getTableName().' as '.TransferItem::$alias)->eloquentFilter($request);
         
@@ -73,11 +77,12 @@ class TransferItemController extends Controller
     /**
      * Display the specified resource.
      *
+     * @param ReadTransferItemRequest $request
      * @param Request $request
      * @param $id
      * @return ApiResource
      */
-    public function show(Request $request, $id)
+    public function show(ReadTransferItemRequest $request, $id)
     {
         $transferItem = TransferItem::eloquentFilter($request)->findOrFail($id);
 
@@ -117,11 +122,12 @@ class TransferItemController extends Controller
     /**
      * Remove the specified resource from storage.
      *
+     * @param DeleteTransferItemRequest $request
      * @param Request $request
      * @param  int $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy(Request $request, $id)
+    public function destroy(DeleteTransferItemRequest $request, $id)
     {
         DB::connection('tenant')->beginTransaction();
 
@@ -137,11 +143,12 @@ class TransferItemController extends Controller
     /**
      * Close Form the specified resource from storage.
      *
+     * @param CloseTransferItemRequest $request
      * @param Request $request
      * @param  int $id
      * @return \Illuminate\Http\Response
      */
-    public function close(Request $request, $id)
+    public function close(CloseTransferItemRequest $request, $id)
     {
         DB::connection('tenant')->beginTransaction();
 

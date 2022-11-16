@@ -24,6 +24,7 @@ class InventoryWarehouseRecapitulationController extends Controller
     {
         $dateFrom = convert_to_server_timezone($request->get('date_from'));
         $dateTo = convert_to_server_timezone($request->get('date_to'));
+        $warehouseId = $request->get('warehouse_id');
 
         $inventoryStart = Inventory::join('forms', 'forms.id', '=', 'inventories.form_id')
             ->select('inventories.*')
@@ -59,6 +60,10 @@ class InventoryWarehouseRecapitulationController extends Controller
             ->addSelect(DB::raw('COALESCE(subQueryInventoryIn.totalQty, 0) as stock_in'))
             ->addSelect(DB::raw('COALESCE(subQueryInventoryOut.totalQty, 0) as stock_out'))
             ->addSelect(DB::raw('COALESCE(subQueryInventoryStart.totalQty, 0) + COALESCE(subQueryInventoryIn.totalQty, 0) + COALESCE(subQueryInventoryOut.totalQty, 0) as ending_balance'));
+        
+        if ($warehouseId){
+            $items->where('warehouses.id', '=', $warehouseId);
+        }
 
         $items = pagination($items, 10);
 

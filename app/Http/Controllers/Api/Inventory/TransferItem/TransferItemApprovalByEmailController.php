@@ -112,7 +112,7 @@ class TransferItemApprovalByEmailController extends Controller
         if (!$token) {
             return response()->json([
                 'code' => 422,
-                'message' => 'Approve email failed',
+                'message' => 'Reject email failed',
                 'errors' => [],
             ], 422);
         };

@@ -14,6 +14,10 @@ class StoreTransferItemRequest extends FormRequest
      */
     public function authorize()
     {
+        if (! tenant(auth()->user()->id)->hasPermissionTo('create transfer item')) {
+            return false;
+        }
+        
         return true;
     }
 
@@ -30,7 +34,7 @@ class StoreTransferItemRequest extends FormRequest
             'warehouse_id' => ValidationRule::foreignKey('warehouses'),
             'to_warehouse_id' => ValidationRule::foreignKey('warehouses'),
             'driver' => 'required|string',
-
+            'notes' => 'nullable|string|max:255',
             'items' => 'required_without:services|array',
         ];
 
