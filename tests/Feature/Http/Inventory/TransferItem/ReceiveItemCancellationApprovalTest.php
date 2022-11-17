@@ -5,7 +5,7 @@ namespace Tests\Feature\Http\Inventory\TransferItem;
 use App\Model\Inventory\TransferItem\ReceiveItem;
 use Tests\TestCase;
 
-class ReceiveItemApprovalTest extends TestCase
+class ReceiveItemCancellationApprovalTest extends TestCase
 {
     use ReceiveItemSetup;
 
@@ -35,35 +35,26 @@ class ReceiveItemApprovalTest extends TestCase
     }
 
     /** @test */
-    public function update_receive_item()
+    public function delete_receive_item()
     {
         $this->create_receive_item();
 
         $receiveItem = ReceiveItem::orderBy('id', 'asc')->first();
 
-        $data = $this->dummyDataReceiveItem();
-        $data['id'] = $receiveItem->id;
+        $response = $this->json('DELETE', self::$path.'/'.$receiveItem->id, [], [$this->headers]);
 
-        $response = $this->json('PATCH', self::$path.'/'.$receiveItem->id, $data, [$this->headers]);
-
-        $response->assertStatus(201);
-
-        $this->assertDatabaseHas('forms', [
-            'id' => $response->json('data.form.id'),
-            'number' => $response->json('data.form.number'),
-            'approval_status' => 0,
-        ], 'tenant');
+        $response->assertStatus(204);
     }
 
     /** @test */
-    public function approve_receive_item_no_permission()
+    public function approve_cancel_receive_item_no_permission()
     {
-        $this->update_receive_item();
+        $this->delete_receive_item();
         $this->unsetUserRole();
 
         $receiveItem = ReceiveItem::orderBy('id', 'asc')->first();
 
-        $response = $this->json('POST', self::$path.'/'.$receiveItem->id.'/approve', [
+        $response = $this->json('POST', self::$path.'/'.$receiveItem->id.'/cancellation-approve', [
             'id' => $receiveItem->id,
             'form_send_done' => 1
         ], $this->headers);
@@ -76,35 +67,32 @@ class ReceiveItemApprovalTest extends TestCase
     }
 
     /** @test */
-    public function approve_receive_item()
+    public function approve_cancel_receive_item()
     {
-        $this->update_receive_item();
+        $this->delete_receive_item();
 
         $receiveItem = ReceiveItem::orderBy('id', 'asc')->first();
 
-        $response = $this->json('POST', self::$path.'/'.$receiveItem->id.'/approve', [
-            'id' => $receiveItem->id,
-            'form_send_done' => 1
-        ], $this->headers);
+        $response = $this->json('POST', self::$path.'/'.$receiveItem->id.'/cancellation-approve', [], $this->headers);
         
         $response->assertStatus(200);
 
         $this->assertDatabaseHas('forms', [
             'id' => $response->json('data.form.id'),
             'number' => $response->json('data.form.number'),
-            'approval_status' => 1,
+            'cancellation_status' => 1,
         ], 'tenant');
     }
 
     /** @test */
-    public function reject_receive_item_no_permission()
+    public function reject_cancel_receive_item_no_permission()
     {
-        $this->update_receive_item();
+        $this->delete_receive_item();
         $this->unsetUserRole();
 
         $receiveItem = ReceiveItem::orderBy('id', 'asc')->first();
 
-        $response = $this->json('POST', self::$path.'/'.$receiveItem->id.'/reject', [
+        $response = $this->json('POST', self::$path.'/'.$receiveItem->id.'/cancellation-reject', [
             'id' => $receiveItem->id,
             'reason' => 'some reason'
         ], $this->headers);
@@ -117,13 +105,13 @@ class ReceiveItemApprovalTest extends TestCase
     }
 
     /** @test */
-    public function reject_receive_item()
+    public function reject_cancel_receive_item()
     {
-        $this->update_receive_item();
+        $this->delete_receive_item();
 
         $receiveItem = ReceiveItem::orderBy('id', 'asc')->first();
 
-        $response = $this->json('POST', self::$path.'/'.$receiveItem->id.'/reject', [
+        $response = $this->json('POST', self::$path.'/'.$receiveItem->id.'/cancellation-reject', [
             'id' => $receiveItem->id,
             'reason' => 'some reason'
         ], $this->headers);
@@ -133,7 +121,7 @@ class ReceiveItemApprovalTest extends TestCase
         $this->assertDatabaseHas('forms', [
             'id' => $response->json('data.form.id'),
             'number' => $response->json('data.form.number'),
-            'approval_status' => -1,
+            'cancellation_status' => -1,
         ], 'tenant');
     }
 }

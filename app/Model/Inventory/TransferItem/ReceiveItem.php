@@ -4,6 +4,7 @@ namespace App\Model\Inventory\TransferItem;
 
 use App\Model\Form;
 use App\Exceptions\IsReferencedException;
+use App\Exceptions\StockNotEnoughException;
 use App\Model\Master\Warehouse;
 use App\Model\TransactionModel;
 use App\Model\Accounting\Journal;
@@ -159,6 +160,25 @@ class ReceiveItem extends TransactionModel
             $journal->chart_of_account_id = $receiveItemItem->item->chart_of_account_id;
             $journal->debit = $itemAmount;
             $journal->save();
+        }
+    }
+
+    public function checkStock()
+    {
+        foreach ($this->items as $item) {
+            $options = [
+                'expiry_date' => $item->expiry_date,
+                'production_number' => $item->production_number,
+            ];
+            $stock = InventoryHelper::getCurrentStock(
+                $item->item,
+                $this->form->date,
+                $this->warehouse,
+                $options
+            );
+            if (abs($item->quantity) > $stock) {
+                throw new StockNotEnoughException($item->item, $options, $stock);
+            }
         }
     }
 }

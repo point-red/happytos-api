@@ -23,14 +23,19 @@ Route::prefix('inventory')->namespace('Inventory')->group(function () {
     Route::post('transfer-items/histories', 'TransferItem\\TransferItemHistoryController@store');
     Route::get('approval/transfer-items', 'TransferItem\\TransferItemApprovalController@index');
     Route::post('approval/transfer-items/send', 'TransferItem\\TransferItemApprovalController@sendApproval');
-    Route::apiResource('receive-items', 'TransferItem\\ReceiveItemController');
-    Route::post('receive-items/{id}/approve', 'TransferItem\\ReceiveItemApprovalController@approve');
-    Route::post('receive-items/{id}/reject', 'TransferItem\\ReceiveItemApprovalController@reject');
-    Route::post('receive-items/{id}/cancellation-approve', 'TransferItem\\ReceiveItemCancellationApprovalController@approve');
-    Route::post('receive-items/{id}/cancellation-reject', 'TransferItem\\ReceiveItemCancellationApprovalController@reject');
+
+    Route::group(['middleware' => ['tenant.module-access:transfer item']], function () {
+        Route::apiResource('receive-items', 'TransferItem\\ReceiveItemController');
+
+        Route::post('receive-items/{id}/approve', 'TransferItem\\ReceiveItemApprovalController@approve');
+        Route::post('receive-items/{id}/reject', 'TransferItem\\ReceiveItemApprovalController@reject');
+        Route::post('receive-items/{id}/cancellation-approve', 'TransferItem\\ReceiveItemCancellationApprovalController@approve');
+        Route::post('receive-items/{id}/cancellation-reject', 'TransferItem\\ReceiveItemCancellationApprovalController@reject');
+        Route::get('receive-items/{id}/histories', 'TransferItem\\ReceiveItemHistoryController@index');
+    });
+
     Route::post('receive-items/{id}/send', 'TransferItem\\ReceiveItemController@sendApproval');
     Route::post('receive-items/export', 'TransferItem\\ReceiveItemController@export');
-    Route::get('receive-items/{id}/histories', 'TransferItem\\ReceiveItemHistoryController@index');
     Route::post('receive-items/histories', 'TransferItem\\ReceiveItemHistoryController@store');
     Route::apiResource('transfer-item-customers', 'TransferItem\\TransferItemCustomerController');
     Route::post('transfer-item-customers/{id}/approve', 'TransferItem\\TransferItemCustomerController@approve');
