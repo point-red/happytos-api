@@ -29,14 +29,14 @@ class UpdateReceiveItemRequest extends FormRequest
         $rulesReceiveItem = [
             'warehouse_id' => ValidationRule::foreignKey('warehouses'),
             'from_warehouse_id' => ValidationRule::foreignKey('warehouses'),
-
+            'notes' => 'nullable|string|max:255',
             'items' => 'required_without:services|array',
         ];
 
         $rulesReceiveItemItems = [
             'items.*.item_id' => ValidationRule::foreignKey('items'),
             'items.*.item_name' => 'required|string',
-            'items.*.quantity' => ValidationRule::quantity(),
+            'items.*.quantity' => 'required|numeric|min:1',
             'items.*.unit' => ValidationRule::unit(),
             'items.*.converter' => ValidationRule::converter()
         ];

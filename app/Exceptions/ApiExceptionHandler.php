@@ -83,7 +83,7 @@ trait ApiExceptionHandler
         if ($exception instanceof StockNotEnoughException || $exception instanceof ItemQuantityInvalidException) {
             return response()->json([
                 'code' => 422,
-                'message' => $this->getMessage(),
+                'message' => $exception->getMessage(),
             ], 422);
         }
 
