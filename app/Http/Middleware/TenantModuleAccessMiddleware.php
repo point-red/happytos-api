@@ -24,6 +24,8 @@ class TenantModuleAccessMiddleware
     protected $userDefaultWarehouse;
     protected $whitelistCheckPermissionOnDB = ['close'];
 
+    private $receiveItem = false;
+
     /**
      * Handle an incoming request.
      *
@@ -37,6 +39,7 @@ class TenantModuleAccessMiddleware
         $this->request = $request;
         $this->action = $this->_matchModuleAction($request->route()->getActionMethod());
 
+        $this->_checkIsReceiveItem();
         $this->_loadTenantUser();
         $this->_loadFormReference();
 
@@ -113,14 +116,14 @@ class TenantModuleAccessMiddleware
 
     protected function _loadFormReference()
     {
+        $type = $this->receiveItem ? 'receive item' : $this->module;
         $requestParams = $this->request->route()->parameters;
         
         if (count($requestParams) > 0) {
             $formableId = array_values($requestParams)[0];
-            $this->form = Form::where('formable_id', $formableId)
-                ->where('formable_type', Str::studly($this->module))
+            $this->form = Form::where('formable_id', (int) $formableId)
+                ->where('formable_type', Str::studly($type))
                 ->first();
-
         }
     }
 
@@ -173,18 +176,9 @@ class TenantModuleAccessMiddleware
             return true;
         }
 
-        $transferItem = ['update transfer item', 'delete transfer item', 'approve transfer item'];
-
         if (
-            (
-                in_array($this->action.' '.$this->module, $transferItem)
-                && $this->form 
-                && $this->form->formable->to_warehouse_id !== $this->userDefaultWarehouse->id
-            ) || (
-                ! in_array($this->action.' '.$this->module, $transferItem)
-                && $this->form 
-                && $this->form->formable->warehouse_id !== $this->userDefaultWarehouse->id
-            )
+            $this->form
+            && $this->form->formable->warehouse_id !== $this->userDefaultWarehouse->id
         ) {
             throw new WarehouseNullException($this->action);
         }
@@ -236,5 +230,10 @@ class TenantModuleAccessMiddleware
         }
 
         return $action;
+    }
+
+    private function _checkIsReceiveItem()
+    {
+        $this->receiveItem = Str::contains($this->request->route()->uri, 'receive-items');
     }
 }

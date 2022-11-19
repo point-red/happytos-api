@@ -8,6 +8,7 @@ use App\Model\Accounting\ChartOfAccount;
 use App\Model\Auth\ModelHasRole;
 use App\Model\Auth\Permission;
 use App\Model\Auth\Role;
+use App\Model\Auth\RoleHasPermission;
 use App\Model\Form;
 use App\Model\Inventory\TransferItem\TransferItem;
 use App\Model\Master\Item;
@@ -30,6 +31,8 @@ trait ReceiveItemSetup
     public function setUp(): void
     {
         parent::setUp();
+
+        ini_set('memory_limit', -1);
 
         $this->signIn();
         $this->setProject();
@@ -71,9 +74,16 @@ trait ReceiveItemSetup
     private function insertPermissions()
     {
         $permissions = ['create', 'read', 'update', 'delete', 'approve'];
+        $role = Role::createIfNotExists('super admin');
 
         foreach ($permissions as $permission) {
-            Permission::createIfNotExists($permission.' transfer item');
+            $permission = Permission::createIfNotExists($permission.' transfer item');
+
+            try {
+                RoleHasPermission::forceCreate(['permission_id' => $permission->id, 'role_id' => $role->id]);
+            } catch (\Throwable $th) {
+                Log::error($th->getMessage());
+            }
         }
     }
 
