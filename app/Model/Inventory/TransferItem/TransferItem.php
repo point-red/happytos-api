@@ -34,7 +34,6 @@ class TransferItem extends TransactionModel
 
     public function form()
     {
-        // dd($this->morphOne(Form::class, 'formable')->get());
         return $this->morphOne(Form::class, 'formable');
     }
 
