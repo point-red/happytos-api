@@ -54,11 +54,12 @@ class InventoryDnaController extends Controller
         
         if ($inventories_feature) {
             $inventories = Inventory::selectRaw('inventories.*, sum(inventories.quantity) + COALESCE(abs(inventories_feature.quantity), 0) as remaining')
-                ->leftjoin(Inventory::getTableName().' as inventories_feature', function ($q) use($inventories_feature) {
+                ->leftjoin(Inventory::getTableName().' as inventories_feature', function ($q) use($inventories_feature, $warehouseId) {
                     $q->on('inventories_feature.item_id', '=', 'inventories.item_id')
                     ->where('inventories_feature.production_number', DB::raw('inventories.production_number'))
                     ->where('inventories_feature.expiry_date', DB::raw('inventories.expiry_date'))
-                    ->where('inventories_feature.form_id', $inventories_feature->form_id);
+                    ->where('inventories_feature.form_id', $inventories_feature->form_id)
+                    ->where('inventories_feature.warehouse_id', $warehouseId);
                 })
                 ->groupBy(['inventories.item_id', 'inventories.production_number', 'inventories.expiry_date'])
                 ->where('inventories.item_id', $itemId)

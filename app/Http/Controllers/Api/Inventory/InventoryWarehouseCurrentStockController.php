@@ -35,6 +35,7 @@ class InventoryWarehouseCurrentStockController extends Controller
             if ($inventoriesForm) {
                 $inventoriesFeature = Inventory::selectRaw('item_id, abs(sum(inventories.quantity)) as quantity')
                     ->where('form_id', $inventoriesForm->form_id)
+                    ->where('warehouse_id', $warehouseId)
                     ->groupBy('item_id');
                     
                 $inventories = Inventory::selectRaw('inventories.*, sum(inventories.quantity) + COALESCE(abs(inventories_feature.quantity), 0) as remaining')
