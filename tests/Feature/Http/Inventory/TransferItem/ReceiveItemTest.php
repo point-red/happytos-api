@@ -13,7 +13,11 @@ class ReceiveItemTest extends TestCase
     /** @test */
     public function create_receive_item_no_permission()
     {
+        $this->setRole();
+
         $data = $this->dummyDataReceiveItem();
+
+        $this->signIn();
 
         $response = $this->json('POST', self::$path, $data, $this->headers);
 
