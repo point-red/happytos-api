@@ -100,7 +100,7 @@ class ReceiveItemController extends Controller
     public function update(UpdateReceiveItemRequest $request, $id)
     {
         $receiveItem = ReceiveItem::findOrFail($id);
-        $receiveItem->checkStock();
+        // $receiveItem->checkStock();
         
         $result = DB::connection('tenant')->transaction(function () use ($request, $receiveItem) {
             $receiveItem->form->archive();

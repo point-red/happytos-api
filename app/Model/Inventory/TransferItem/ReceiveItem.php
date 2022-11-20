@@ -172,7 +172,7 @@ class ReceiveItem extends TransactionModel
             ];
             $stock = InventoryHelper::getCurrentStock(
                 $item->item,
-                $this->form->date,
+                convert_to_server_timezone(now()),
                 $this->warehouse,
                 $options
             );
