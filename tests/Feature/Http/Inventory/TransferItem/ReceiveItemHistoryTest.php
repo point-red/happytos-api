@@ -96,6 +96,32 @@ class ReceiveItemHistoryTest extends TestCase
     }
 
     /** @test */
+    public function approve_receive_item_fullname()
+    {
+        $this->approve_receive_item();
+
+        $history = UserActivity::orderBy('id', 'desc')->first();
+        $historyUserName = $history->user->first_name.' '.$history->user->last_name;
+        
+        $fullName = $this->user->first_name.' '.$this->user->last_name;
+
+        $this->assertEquals($fullName, $historyUserName);
+    }
+
+    /** @test */
+    public function approve_receive_item_date_format()
+    {
+        $this->approve_receive_item();
+        
+        $history = UserActivity::orderBy('id', 'desc')->first();
+        $historyDate = $this->getDate($history->date);
+        
+        $date = $this->getDate();
+
+        $this->assertEquals($date, $historyDate);
+    }
+
+    /** @test */
     public function read_receive_item_histories_no_permission()
     {
         $this->create_receive_item();

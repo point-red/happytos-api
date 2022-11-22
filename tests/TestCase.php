@@ -86,6 +86,8 @@ abstract class TestCase extends BaseTestCase
         $tenantUser->id = $this->user->id;
         $tenantUser->name = $this->user->name;
         $tenantUser->email = $this->user->email;
+        $tenantUser->first_name = $this->user->first_name;
+        $tenantUser->last_name = $this->user->last_name;
         $tenantUser->save();
 
         $this->userBranch($tenantUser);

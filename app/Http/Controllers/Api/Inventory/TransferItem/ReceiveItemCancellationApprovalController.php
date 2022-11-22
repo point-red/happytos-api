@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ApiResource;
 use App\Model\Inventory\TransferItem\ReceiveItem;
 use App\Model\Inventory\TransferItem\TransferItem;
+use Exception;
 use Illuminate\Http\Request;
 
 class ReceiveItemCancellationApprovalController extends Controller
@@ -20,6 +21,10 @@ class ReceiveItemCancellationApprovalController extends Controller
     public function approve(Request $request, $id)
     {
         $receiveItem = ReceiveItem::findOrFail($id);
+        if ($receiveItem->form->cancellation_status == 1) {
+            throw new Exception('This form has been canceled', 422);
+        }
+
         $receiveItem->form->cancellation_approval_by = auth()->user()->id;
         $receiveItem->form->cancellation_approval_at = now();
         $receiveItem->form->cancellation_status = 1;
@@ -42,6 +47,10 @@ class ReceiveItemCancellationApprovalController extends Controller
      */
     public function reject(Request $request, $id)
     {
+        $request->validate([
+            'reason' => ['required', 'max:255'],
+        ]);
+
         $receiveItem = ReceiveItem::findOrFail($id);
         $receiveItem->form->cancellation_approval_by = auth()->user()->id;
         $receiveItem->form->cancellation_approval_at = now();
