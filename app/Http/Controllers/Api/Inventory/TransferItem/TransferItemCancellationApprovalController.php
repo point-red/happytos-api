@@ -9,6 +9,7 @@ use App\Http\Requests\Inventory\TransferItem\ApproveTransferItemRequest;
 use App\Http\Resources\ApiResource;
 use App\Model\Inventory\TransferItem\TransferItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TransferItemCancellationApprovalController extends Controller
 {
@@ -20,16 +21,30 @@ class TransferItemCancellationApprovalController extends Controller
      */
     public function approve(ApproveTransferItemRequest $request, $id)
     {
-        $transferItem = TransferItem::findOrFail($id);
-        $transferItem->form->cancellation_approval_by = auth()->user()->id;
-        $transferItem->form->cancellation_approval_at = now();
-        $transferItem->form->cancellation_status = 1;
-        $transferItem->form->save();
+        try {
+            $transferItem = TransferItem::findOrFail($id);
+            
+            if ($transferItem->form->cancellation_status === 0) {
+                $transferItem->form->cancellation_approval_by = auth()->user()->id;
+                $transferItem->form->cancellation_approval_at = now();
+                $transferItem->form->cancellation_status = 1;
+                $transferItem->form->save();
 
-        JournalHelper::delete($transferItem->form->id);
-        InventoryHelper::delete($transferItem->form->id);
+                JournalHelper::delete($transferItem->form->id);
+                InventoryHelper::delete($transferItem->form->id);
 
-        return new ApiResource($transferItem);
+            } elseif ($transferItem->form->cancellation_status === 1) {
+                abort(422, 'This form has been approved');
+            }
+
+            return new ApiResource($transferItem);
+        } catch (\Exception $e) {
+            DB::connection('tenant')->rollBack();
+            return response()->json([
+                'code' => 422,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**
@@ -40,7 +55,7 @@ class TransferItemCancellationApprovalController extends Controller
      */
     public function reject(ApproveTransferItemRequest $request, $id)
     {
-        $request->validate([ 'reason' => 'required' ]);
+        $request->validate([ 'reason' => 'required|string|max:255' ]);
         
         $transferItem = transferItem::findOrFail($id);
         $transferItem->form->cancellation_approval_by = auth()->user()->id;

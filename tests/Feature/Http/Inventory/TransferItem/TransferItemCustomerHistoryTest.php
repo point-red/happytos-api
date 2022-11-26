@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Inventory\TransferItem;
 
+use App\Model\UserActivity;
 use Tests\TestCase;
 
 class TransferItemCustomerHistoryTest extends TestCase
@@ -76,5 +77,18 @@ class TransferItemCustomerHistoryTest extends TestCase
             "user_id" => $this->user->id,
             'activity' => 'Printed'
         ], 'tenant');
+    }
+
+    /** @test */
+    public function create_transfer_item_customer_history_date_format()
+    {
+        $this->success_create_transfer_item_customer_history();
+        
+        $history = UserActivity::orderBy('id', 'desc')->first();
+        $historyDate = $this->getDate($history->date);
+        
+        $date = $this->getDate();
+
+        $this->assertEquals($date, $historyDate);
     }
 }

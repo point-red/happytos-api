@@ -5,6 +5,8 @@ namespace Tests\Feature\Http\Inventory\TransferItem;
 use App\Model\Master\Item;
 use App\Model\Accounting\ChartOfAccount;
 use App\Model\Inventory\TransferItem\TransferItem;
+use App\Model\Master\ItemUnit;
+use App\Model\Master\Warehouse;
 use Tests\TestCase;
 
 class TransferItemApprovalTest extends TestCase
@@ -112,6 +114,27 @@ class TransferItemApprovalTest extends TestCase
             ]);
     }
 
+    /** @test */
+    public function form_has_been_approved_approve_transfer_item_customer()
+    {
+        $this->setApprovePermission();
+        
+        $transferItem = $this->createTransferItem();
+
+        $transferItem->form->approval_status = 1;
+        $transferItem->form->save();
+
+        $response = $this->json('POST', '/api/v1/inventory/transfer-items/'.$transferItem->id.'/approve', [
+            'id' => $transferItem->id
+        ], $this->headers);
+        
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "This form has been approved"
+            ]);
+    }
+
     /**
      * @test 
      */
@@ -123,10 +146,38 @@ class TransferItemApprovalTest extends TestCase
             'id' => $transferItem->id
         ], $this->headers);
 
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "Unauthorized"
+            ]);
+    }
+
+    /** @test */
+    public function invalid_journal_approve_transfer_item_customer()
+    {
+        $this->setCreatePermission();
+        $this->setApprovePermission();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = null;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $transferItem = $this->json('POST', '/api/v1/inventory/transfer-items', $data, $this->headers);
+
+        $transferItem = TransferItem::where('id', $transferItem->json('data')["id"])->first();
+
+        $response = $this->json('POST', '/api/v1/inventory/transfer-items/'.$transferItem->id.'/approve', [
+            'id' => $transferItem->id
+        ], $this->headers);
+        
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "Please set item account!"
             ]);
     }
 
@@ -148,15 +199,15 @@ class TransferItemApprovalTest extends TestCase
         $data = $this->dummyData($item);
 
         $data = data_set($data, 'items.0.quantity', 200);
+        $data = data_set($data, 'items.0.stock', 300);
 
         $response = $this->json('POST', '/api/v1/inventory/transfer-items', $data, $this->headers);
-
+        
         $transferItem = TransferItem::where('id', $response->json('data')["id"])->first();
-
         $response = $this->json('POST', '/api/v1/inventory/transfer-items/'.$transferItem->id.'/approve', [
             'id' => $transferItem->id
         ], $this->headers);
-
+        
         $response->assertStatus(422)
             ->assertJson([
                 "code" => 422,
@@ -175,9 +226,16 @@ class TransferItemApprovalTest extends TestCase
 
         $this->assertEquals($transferItem->form->approval_status, 0);
 
+        $firstStock = $this->getStock($transferItem->items[0]->item, $this->warehouse, []);
+        $distributionWarehouse = Warehouse::where('name', 'DISTRIBUTION WAREHOUSE')->first();
+        $firstStockDistributionWarehouse = $this->getStock($transferItem->items[0]->item, $distributionWarehouse, []);
+
         $response = $this->json('POST', '/api/v1/inventory/transfer-items/'.$transferItem->id.'/approve', [
             'id' => $transferItem->id
         ], $this->headers);
+
+        $endStock = $this->getStock($transferItem->items[0]->item, $this->warehouse, []);
+        $endStockDistributionWarehouse = $this->getStock($transferItem->items[0]->item, $distributionWarehouse, []);
 
         $items = [];
         foreach ($transferItem->items as $item) {
@@ -192,6 +250,16 @@ class TransferItemApprovalTest extends TestCase
                 "stock" => $item->stock,
                 "balance" => $item->balance
             ]);
+
+            $this->assertEquals(
+                $endStock,
+                $firstStock - $item['quantity']
+            );
+
+            $this->assertEquals(
+                $endStockDistributionWarehouse,
+                $firstStockDistributionWarehouse + $item['quantity']
+            );
         }
         
         $response->assertStatus(200)
@@ -244,6 +312,58 @@ class TransferItemApprovalTest extends TestCase
     /**
      * @test 
      */
+    public function required_reason_reject_transfer_item()
+    {
+        $this->setApprovePermission();
+
+        $transferItem = $this->createTransferItem();
+
+        $response = $this->json('POST', '/api/v1/inventory/transfer-items/'.$transferItem->id.'/reject', [
+            'id' => $transferItem->id,
+        ], $this->headers);
+        
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid.",
+                "errors" => [
+                    "reason" => [
+                        "The reason field is required."
+                    ]
+                ]
+            ]);
+    }
+
+    /**
+     * @test 
+     */
+    public function invalid_reason_reject_transfer_item()
+    {
+        $this->setApprovePermission();
+        
+        $transferItem = $this->createTransferItem();
+
+        $response = $this->json('POST', '/api/v1/inventory/transfer-items/'.$transferItem->id.'/reject', [
+            'id' => $transferItem->id,
+            'reason' => $this->faker->words(256)
+        ], $this->headers);
+        
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid.",
+                'errors' => [
+                    'reason' => [
+                        'The reason must be a string.',
+                        'The reason may not be greater than 255 characters.',
+                    ],
+                ],
+            ]);
+    }
+    
+    /**
+     * @test 
+     */
     public function unauthorized_reject_transfer_item()
     {
         $transferItem = $this->createTransferItem();
@@ -253,10 +373,10 @@ class TransferItemApprovalTest extends TestCase
             'reason' => 'some reason'
         ], $this->headers);
         
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "Unauthorized"
             ]);
     }
 
@@ -271,11 +391,17 @@ class TransferItemApprovalTest extends TestCase
         
         $this->assertEquals($transferItem->form->approval_status, 0);
 
+        $firstStock = $this->getStock($transferItem->items[0]->item, $this->warehouse, []);
+
         $response = $this->json('POST', '/api/v1/inventory/transfer-items/'.$transferItem->id.'/reject', [
             'id' => $transferItem->id,
             'reason' => 'some reason'
         ], $this->headers);
+
+        $endStock = $this->getStock($transferItem->items[0]->item, $this->warehouse, []);
         
+        $this->assertEquals($firstStock, $endStock);
+
         $response->assertStatus(200)
             ->assertJson([
                 "data" => [
@@ -301,6 +427,10 @@ class TransferItemApprovalTest extends TestCase
             'approval_by' => $this->user->id,
             'approval_status' => -1,
             'approval_reason' => 'some reason'
+        ], 'tenant');
+
+        $this->assertDatabaseMissing('journals', [
+            'form_id' => $transferItem->form->id,
         ], 'tenant');
     }
 

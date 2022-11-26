@@ -4,6 +4,7 @@ namespace App\Http\Requests\Inventory\TransferItem;
 
 use App\Http\Requests\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Model\Master\ItemUnit;
 
 class StoreTransferItemRequest extends FormRequest
 {
@@ -46,6 +47,35 @@ class StoreTransferItemRequest extends FormRequest
             'items.*.converter' => ValidationRule::converter()
         ];
 
+        foreach ($this->items as $key => $item) {
+            if ($item['quantity'] <= 0) {
+                continue;
+            }
+
+            $rulesKey = 'items.'.$key.'.quantity';
+            $rulesValue = 'lte:'. $item['stock'];
+
+            $rulesTransferItemItems[$rulesKey] = $rulesValue;
+
+            $unit = ItemUnit::where('item_id', $item['item_id'])->first();
+            if ($unit) {
+                $rulesKeyUnit = 'items.'.$key.'.unit';
+                $rulesValueUnit = 'in:'. $unit->label.','.$unit->name;
+    
+                $rulesTransferItemItems[$rulesKeyUnit] = $rulesValueUnit;
+            }
+        }
+
         return array_merge($rulesForm, $rulesTransferItem, $rulesTransferItemItems);
+    }
+
+    /**
+     * @return array
+     */
+    public function messages(): array
+    {
+        return [
+            'lte' => 'The quantity cannot be greater than stock warehouse',
+        ];
     }
 }

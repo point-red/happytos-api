@@ -2,7 +2,11 @@
 
 namespace Tests\Feature\Http\Inventory\TransferItem;
 
+use App\Model\Accounting\ChartOfAccount;
+use App\Model\Form;
+use App\Model\Inventory\TransferItem\ReceiveItem;
 use App\Model\Inventory\TransferItem\TransferItem;
+use App\Model\Master\Item;
 use Tests\TestCase;
 
 class TransferItemTest extends TestCase
@@ -30,16 +34,35 @@ class TransferItemTest extends TestCase
     }
 
     /** @test */
+    public function warehouse_not_default_create_transfer_item()
+    {
+        $this->setCreatePermission();
+
+        $this->unsetDefaultWarehouse();
+        
+        $data = $this->dummyData();
+        $data = data_set($data, 'warehouse_id', 5);
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'please set default warehouse to create this form',
+            ]);
+    }
+
+    /** @test */
     public function unauthorized_create_transfer_item()
     {
         $data = $this->dummyData();
 
         $response = $this->json('POST', self::$path, $data, $this->headers);
 
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "Unauthorized"
             ]);
     }
 
@@ -51,16 +74,35 @@ class TransferItemTest extends TestCase
         $data = $this->dummyData();
 
         $data = data_set($data, 'date', null);
-        $data = data_set($data, 'request_approval_to', null);
-        $data = data_set($data, 'items.0.item_id', null);
+        $data = data_set($data, 'increment_group', null);
 
         $response = $this->json('POST', self::$path, $data, $this->headers);
 
         $response->assertStatus(422)
             ->assertJson([
                 "code" => 422,
-                "message" => "The given data was invalid."
+                "message" => "The given data was invalid.",
+                'errors' => [
+                    'date' => ['The date field is required.'],
+                    'increment_group' => ['The increment group field is required.']
+                ],
             ]);
+    }
+
+    public function invalid_unique_field_create_transfer_item()
+    {
+        $transferItem1 = $this->createTransferItem();
+        $transferItem2 = $this->createTransferItem();
+
+        $formTransfer1 = $transferItem1->form;
+        $formTransfer2 = $transferItem2->form;
+        
+        try {
+            $formTransfer1->number = $formTransfer2->number;
+            $formTransfer1->save();
+        } catch (\Throwable $th) {
+            $this->assertStringContainsString('Integrity constraint violation: 1062 Duplicate entry', $th->getMessage());
+        }
     }
 
     /** @test */
@@ -77,7 +119,12 @@ class TransferItemTest extends TestCase
         $response->assertStatus(422)
             ->assertJson([
                 "code" => 422,
-                "message" => "The given data was invalid."
+                "message" => "The given data was invalid.",
+                'errors' => [
+                    "items.0.item_id" => [
+                        "The selected items.0.item_id is invalid."
+                    ]
+                ],
             ]);
     }
 
@@ -96,7 +143,7 @@ class TransferItemTest extends TestCase
         $response->assertStatus(422)
             ->assertJson([
                 "code" => 422,
-                "message" => "The given data was invalid."
+                "message" => "Warehouse  not set as default"
             ]);
     }
 
@@ -107,14 +154,20 @@ class TransferItemTest extends TestCase
         
         $data = $this->dummyData();
 
-        $data = data_set($data, 'notes', $this->faker->text(500));
+        $data = data_set($data, 'notes', $this->faker->words(256));
 
         $response = $this->json('POST', self::$path, $data, $this->headers);
 
         $response->assertStatus(422)
             ->assertJson([
                 "code" => 422,
-                "message" => "The given data was invalid."
+                "message" => "The given data was invalid.",
+                'errors' => [
+                    'notes' => [
+                        'The notes must be a string.',
+                        'The notes may not be greater than 255 characters.',
+                    ],
+                ]
             ]);
     }
 
@@ -137,11 +190,20 @@ class TransferItemTest extends TestCase
     {
         $this->setCreatePermission();
         
-        $data = $this->dummyData();
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+        
+        $firstStock = $this->getStock($item, $this->warehouse, []);
 
         $response = $this->json('POST', self::$path, $data, $this->headers);
 
-        $this->assertEquals($response->json('data.items.0.stock'), $data['items'][0]['stock']);
+        $this->assertEquals($response->json('data.items.0.stock'), $firstStock);
     }
 
     /** @test */
@@ -149,11 +211,65 @@ class TransferItemTest extends TestCase
     {
         $this->setCreatePermission();
         
-        $data = $this->dummyData();
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $firstStock = $this->getStock($item, $this->warehouse, []);
 
         $response = $this->json('POST', self::$path, $data, $this->headers);
 
-        $this->assertEquals($response->json('data.items.0.balance'), $data['items'][0]['stock'] - $data['items'][0]['quantity']);
+        $this->assertEquals($response->json('data.items.0.balance'), $firstStock - $data['items'][0]['quantity']);
+    }
+
+    /** @test */
+    public function invalid_unit_create_transfer_item()
+    {
+        $this->setCreatePermission();
+
+        $data = $this->dummyData();
+
+        $data['items'][0]['unit'] = 'unitTest';
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid.",
+                'errors' => [
+                    'items.0.unit' => [
+                        'The selected items.0.unit is invalid.',
+                    ],
+                ],
+            ]);
+    }
+
+    /** @test */
+    public function quantity_bigger_then_stock_create_transfer_item()
+    {
+        $this->setCreatePermission();
+
+        $data = $this->dummyData();
+        $data['items'][0]['quantity'] = 1000000000;
+
+        $response = $this->json('POST', self::$path, $data, $this->headers);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    'items.0.quantity' => [
+                        'The quantity cannot be greater than stock warehouse',
+                    ],
+                ],
+            ]);
     }
     
     /** @test */
@@ -237,10 +353,10 @@ class TransferItemTest extends TestCase
             'sort_by' => '-form.number',
         ], $this->headers);
 
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "Unauthorized"
             ]);
     }
 
@@ -314,10 +430,10 @@ class TransferItemTest extends TestCase
             'includes' => 'warehouse;to_warehouse;items.item;form.createdBy;form.requestApprovalTo;form.branch'
         ], $this->headers);
         
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "Unauthorized"
             ]);
     }
 
@@ -368,6 +484,47 @@ class TransferItemTest extends TestCase
     }
 
     /** @test */
+    public function branch_not_default_update_transfer_item()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItem = $this->createTransferItem();
+        
+        $this->unsetDefaultBranch();
+
+        $data = $this->dummyData();
+
+        $data["id"] = $transferItem->id;
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'please set default branch to save this form',
+            ]);
+    }
+
+    /** @test */
+    public function warehouse_not_default_update_transfer_item()
+    {
+        $this->setUpdatePermission();
+
+        $transferItem = $this->createTransferItem();
+
+        $this->unsetDefaultWarehouse();
+
+        $data = $this->dummyData();
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'please set default warehouse to update this form',
+            ]);
+    }
+
+    /** @test */
     public function unauthorized_update_transfer_item()
     {   
         $transferItem = $this->createTransferItem();
@@ -378,10 +535,65 @@ class TransferItemTest extends TestCase
 
         $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
         
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "Unauthorized"
+            ]);
+    }
+
+    /** @test */
+    public function state_form_done_update_transfer_item()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItem = $this->createTransferItem();
+        
+        $receiveItem = new ReceiveItem;
+        $receiveItem->warehouse_id = $transferItem->to_warehouse_id;
+        $receiveItem->from_warehouse_id = $transferItem->warehouse_id;
+        $receiveItem->transfer_item_id = $transferItem->id;
+        $receiveItem->save();
+
+        $form = new Form;
+        $form->formable_id = $receiveItem->id;
+        $form->formable_type = ReceiveItem::$morphName;
+        $form->number = 'TIRECEIVE001';
+        $form->save();
+
+        $data = $this->dummyData();
+
+        $data["id"] = $transferItem->id;
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "Cannot edit form because referenced by transfer receive"
+            ]);
+    }
+
+    /** @test */
+    public function state_form_close_update_transfer_item()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItem = $this->createTransferItem();
+        
+        $transferItem->form->close_status = 1;
+        $transferItem->form->save();
+
+        $data = $this->dummyData();
+
+        $data["id"] = $transferItem->id;
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "Cannot edit form because the status of the form is close"
             ]);
     }
 
@@ -394,40 +606,20 @@ class TransferItemTest extends TestCase
 
         $data = $this->dummyData();
 
+        $data["id"] = $transferItem->id;
         $data = data_set($data, 'date', null);
-        $data = data_set($data, 'request_approval_to', null);
-        $data = data_set($data, 'items.0.item_id', null);
-
-        $data["id"] = $transferItem->id;
+        $data = data_set($data, 'increment_group', null);
 
         $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
 
         $response->assertStatus(422)
             ->assertJson([
                 "code" => 422,
-                "message" => "The given data was invalid."
-            ]);
-    }
-
-    /** @test */
-    public function invalid_data_item_update_transfer_item()
-    {
-        $this->setUpdatePermission();
-        
-        $transferItem = $this->createTransferItem();
-
-        $data = $this->dummyData();
-
-        $data = data_set($data, 'items.0.item_id', 100);
-
-        $data["id"] = $transferItem->id;
-
-        $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
-
-        $response->assertStatus(422)
-            ->assertJson([
-                "code" => 422,
-                "message" => "The given data was invalid."
+                "message" => "The given data was invalid.",
+                'errors' => [
+                    'date' => ['The date field is required.'],
+                    'increment_group' => ['The increment group field is required.']
+                ],
             ]);
     }
 
@@ -450,8 +642,51 @@ class TransferItemTest extends TestCase
         $response->assertStatus(422)
             ->assertJson([
                 "code" => 422,
-                "message" => "The given data was invalid."
+                "message" => "Warehouse  not set as default"
             ]);
+    }
+
+    /** @test */
+    public function invalid_data_item_update_transfer_item()
+    {
+        $this->setUpdatePermission();
+        
+        $transferItem = $this->createTransferItem();
+
+        $data = $this->dummyData();
+
+        $data = data_set($data, 'items.0.item_id', 100);
+
+        $data["id"] = $transferItem->id;
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid.",
+                'errors' => [
+                    "items.0.item_id" => [
+                        "The selected items.0.item_id is invalid."
+                    ]
+                ],
+            ]);
+    }
+
+    public function invalid_unique_field_update_transfer_item()
+    {
+        $transferItem1 = $this->createTransferItem();
+        $transferItem2 = $this->createTransferItem();
+
+        $formTransfer1 = $transferItem1->form;
+        $formTransfer2 = $transferItem2->form;
+        
+        try {
+            $formTransfer1->number = $formTransfer2->number;
+            $formTransfer1->save();
+        } catch (\Throwable $th) {
+            $this->assertStringContainsString('Integrity constraint violation: 1062 Duplicate entry', $th->getMessage());
+        }
     }
 
     /** @test */
@@ -463,7 +698,7 @@ class TransferItemTest extends TestCase
         
         $data = $this->dummyData();
 
-        $data = data_set($data, 'notes', $this->faker->text(500));
+        $data = data_set($data, 'notes', $this->faker->words(256));
 
         $data["id"] = $transferItem->id;
 
@@ -472,7 +707,13 @@ class TransferItemTest extends TestCase
         $response->assertStatus(422)
             ->assertJson([
                 "code" => 422,
-                "message" => "The given data was invalid."
+                "message" => "The given data was invalid.",
+                'errors' => [
+                    'notes' => [
+                        'The notes must be a string.',
+                        'The notes may not be greater than 255 characters.',
+                    ]
+                ]
             ]);
     }
 
@@ -501,13 +742,22 @@ class TransferItemTest extends TestCase
         
         $transferItem = $this->createTransferItem();
         
-        $data = $this->dummyData();
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $firstStock = $this->getStock($item, $this->warehouse, []);
 
         $data["id"] = $transferItem->id;
 
         $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
 
-        $this->assertEquals($response->json('data.items.0.stock'), $data['items'][0]['stock']);
+        $this->assertEquals($response->json('data.items.0.stock'), $firstStock);
     }
 
     /** @test */
@@ -517,13 +767,47 @@ class TransferItemTest extends TestCase
         
         $transferItem = $this->createTransferItem();
         
-        $data = $this->dummyData();
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
+
+        $firstStock = $this->getStock($item, $this->warehouse, []);
 
         $data["id"] = $transferItem->id;
 
         $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
 
-        $this->assertEquals($response->json('data.items.0.balance'), $data['items'][0]['stock'] - $data['items'][0]['quantity']);
+        $this->assertEquals($response->json('data.items.0.balance'), $firstStock - $data['items'][0]['quantity']);
+    }
+
+    /** @test */
+    public function quantity_bigger_then_stock_update_transfer_item()
+    {
+        $this->setUpdatePermission();
+
+        $transferItem = $this->createTransferItem();
+        
+        $data = $this->dummyData();
+        $data["id"] = $transferItem->id;
+        $data['items'][0]['quantity'] = 1000000000;
+
+        $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    'items.0.quantity' => [
+                        'The quantity cannot be greater than stock warehouse',
+                    ],
+                ],
+            ]);
     }
 
     /** @test */
@@ -533,10 +817,18 @@ class TransferItemTest extends TestCase
         
         $transferItem = $this->createTransferItem();
 
-        $data = $this->dummyData();
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+        
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
+
+        $data = $this->dummyData($item);
 
         $data["id"] = $transferItem->id;
         $data["notes"] = "Edit notes";
+        $formNumber = $transferItem->form->number;
 
         $response = $this->json('PATCH', self::$path.'/'.$transferItem->id, $data, [$this->headers]);
 
@@ -553,6 +845,8 @@ class TransferItemTest extends TestCase
                 "balance" => $item['balance']
             ]);
         }
+
+        $this->assertEquals($formNumber, $response->json('data.form.number'));
         
         $response->assertStatus(201)
             ->assertJson([
@@ -593,21 +887,105 @@ class TransferItemTest extends TestCase
     }
 
     /** @test */
+    public function branch_not_default_delete_transfer_item()
+    {
+        $this->setDeletePermission();
+        
+        $transferItem = $this->createTransferItem();
+        
+        $this->unsetDefaultBranch();
+
+        $response = $this->json('DELETE', self::$path.'/'.$transferItem->id, [
+            'reason' => 'some reason'
+        ], [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'please set default branch to save this form',
+            ]);
+    }
+
+    /** @test */
+    public function warehouse_not_default_delete_transfer_item()
+    {
+        $this->setDeletePermission();
+
+        $transferItem = $this->createTransferItem();
+
+        $this->unsetDefaultWarehouse();
+
+        $response = $this->json('DELETE', self::$path.'/'.$transferItem->id, [
+            'reason' => 'some reason'
+        ], [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'please set default warehouse to delete this form',
+            ]);
+    }
+
+    /** @test */
     public function unauthorized_delete_transfer_item()
     {
         $transferItem = $this->createTransferItem();
 
+        $response = $this->json('DELETE', self::$path.'/'.$transferItem->id, [
+            'reason' => 'some reason'
+        ], [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "Unauthorized"
+            ]);
+    }
+
+    /** @test */
+    public function state_form_done_delete_transfer_item()
+    {
+        $this->setDeletePermission();
+        
+        $transferItem = $this->createTransferItem();
+
+        $transferItem->form->done = 1;
+        $transferItem->form->save();
+
+        $response = $this->json('DELETE', self::$path.'/'.$transferItem->id, [
+            'reason' => 'some reason'
+        ], [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "Cannot delete form because the status of the form is done",
+            ]);
+    }
+
+    /** @test */
+    public function invalid_reason_delete_transfer_item()
+    {
+        $this->setDeletePermission();
+        
+        $transferItem = $this->createTransferItem();
+
         $response = $this->json('DELETE', self::$path.'/'.$transferItem->id, [], [$this->headers]);
 
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "The given data was invalid.",
+                "errors" => [
+                    "reason" => [
+                        "The reason field is required."
+                    ]
+                ]
             ]);
     }
     
     /** @test */
-    public function delete_transfer_item()
+    public function success_delete_transfer_item()
     {
         $this->setDeletePermission();
         
@@ -626,7 +1004,78 @@ class TransferItemTest extends TestCase
             'request_cancellation_by' => $this->user->id,
             'request_cancellation_reason' => $reason,
             'cancellation_status' => 0,
+            'done' => 0,
         ], 'tenant');
+    }
+
+    /** @test */
+    public function state_form_done_close_transfer_item()
+    {
+        $transferItem = $this->createTransferItem();
+
+        $transferItem->form->done = 1;
+        $transferItem->form->save();
+
+        $reason = "close transfer item reason";
+
+        $data = [
+            "id" => $transferItem->id,
+            "data" => ["reason" => $reason]
+        ];
+
+        $response = $this->json('POST', self::$path.'/'.$transferItem->id.'/close', $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "Cannot close form because the status of the form is done",
+            ]);
+    }
+
+    /** @test */
+    public function branch_not_default_close_transfer_item()
+    {   
+        $transferItem = $this->createTransferItem();
+        
+        $this->unsetDefaultBranch();
+
+        $reason = "close transfer item reason";
+
+        $data = [
+            "id" => $transferItem->id,
+            "data" => ["reason" => $reason]
+        ];
+
+        $response = $this->json('POST', self::$path.'/'.$transferItem->id.'/close', $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'please set default branch to save this form',
+            ]);
+    }
+
+    /** @test */
+    public function warehouse_not_default_close_transfer_item()
+    {
+        $transferItem = $this->createTransferItem();
+
+        $this->unsetDefaultWarehouse();
+
+        $reason = "close transfer item reason";
+
+        $data = [
+            "id" => $transferItem->id,
+            "data" => ["reason" => $reason]
+        ];
+
+        $response = $this->json('POST', self::$path.'/'.$transferItem->id.'/close', $data, [$this->headers]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'code' => 422,
+                'message' => 'please set default warehouse to close this form',
+            ]);
     }
 
     /** @test */
@@ -645,10 +1094,10 @@ class TransferItemTest extends TestCase
 
         $response = $this->json('POST', self::$path.'/'.$transferItem->id.'/close', $data, [$this->headers]);
 
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "Unauthorized"
             ]);
     }
 
