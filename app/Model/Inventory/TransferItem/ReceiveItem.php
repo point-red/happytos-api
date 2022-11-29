@@ -13,6 +13,7 @@ use App\Model\Inventory\TransferItem\TransferItem;
 use App\Model\Inventory\TransferItem\ReceiveItemItem;
 use App\Traits\Model\Inventory\InventoryReceiveItemJoin;
 use App\Helpers\Inventory\InventoryHelper;
+use Exception;
 
 class ReceiveItem extends TransactionModel
 {
@@ -121,11 +122,21 @@ class ReceiveItem extends TransactionModel
                 $options['unit_reference'] = $item->unit;
                 $options['converter_reference'] = $item->converter;
 
-                
+                $firstStock = (new self)->getCurrentStock($item->item, $item->ReceiveItem->warehouse, $options);
+
                 InventoryHelper::increase($form, $item->ReceiveItem->warehouse, $item->item, $item->quantity, $item->unit, $item->converter, $options);
                 
                 $distributionWarehouse = Warehouse::where('name', 'DISTRIBUTION WAREHOUSE')->first();
                 InventoryHelper::decrease($form, $distributionWarehouse, $item->item, $item->quantity, $item->unit, $item->converter, $options);
+
+                $currentStock = (new self)->getCurrentStock($item->item, $item->ReceiveItem->warehouse, $options);
+
+                if (
+                    ($item->balance - $item->stock) !== $item->quantity
+                    || ($firstStock + $item->quantity) !== $currentStock
+                ) {
+                    throw new Exception('Stock not updated in '.$item->ReceiveItem->warehouse->name, 422);
+                }
             }
         }
     }
@@ -170,15 +181,22 @@ class ReceiveItem extends TransactionModel
                 'expiry_date' => $item->expiry_date,
                 'production_number' => $item->production_number,
             ];
-            $stock = InventoryHelper::getCurrentStock(
-                $item->item,
-                convert_to_server_timezone(now()),
-                $this->warehouse,
-                $options
-            );
+
+            $stock = $this->getCurrentStock($item->item, $this->warehouse, $options);
+
             if (abs($item->quantity) > $stock) {
                 throw new StockNotEnoughException($item->item, $options, $stock);
             }
         }
+    }
+
+    private function getCurrentStock($item, $warehouse, $options)
+    {
+        return InventoryHelper::getCurrentStock(
+            $item,
+            convert_to_server_timezone(now(), null, 'Asia/Jakarta'),
+            $warehouse,
+            $options
+        );
     }
 }

@@ -46,6 +46,10 @@ class ReceiveItemApprovalController extends Controller
      */
     public function reject(Request $request, $id)
     {
+        $request->validate([
+            'reason' => ['required', 'max:255'],
+        ]);
+
         $receiveItem = ReceiveItem::findOrFail($id);
         $receiveItem->form->approval_by = auth()->user()->id;
         $receiveItem->form->approval_at = now();

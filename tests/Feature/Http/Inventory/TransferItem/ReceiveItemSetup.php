@@ -15,6 +15,7 @@ use App\Model\Master\Item;
 use App\Model\Master\ItemUnit;
 use App\Model\Master\User as TenantUser;
 use App\Model\Master\Warehouse;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -133,6 +134,8 @@ trait ReceiveItemSetup
     {
         $this->warehouse->pivot->is_default = false;
         $this->warehouse->pivot->save();
+
+        $this->tenantUser->warehouses()->detach($this->warehouse->id);
     }
 
     protected function increaseStock($warehouse, $item, $quantity, $unit)
@@ -149,6 +152,27 @@ trait ReceiveItemSetup
     protected function decreaseStock($form, $warehouse, $item, $quantity, $unit, $options)
     {
         InventoryHelper::decrease($form, $warehouse, $item, $quantity, $unit, 1, $options);
+    }
+
+    protected function getStock($item, $warehouse, $options)
+    {
+        return InventoryHelper::getCurrentStock(
+            $item,
+            convert_to_server_timezone(now(), null, 'Asia/Jakarta'),
+            $warehouse,
+            $options
+        );
+    }
+
+    protected function getDate($date = null)
+    {
+        $tz = 'Asia/Jakarta';
+
+        Carbon::setLocale('id');
+
+        $time = is_null($date) ? Carbon::now($tz) : Carbon::parse($date, $tz);
+
+        return $time->format('d F Y H:i');
     }
 
     private function dummyDataTransferItem()
@@ -179,7 +203,7 @@ trait ReceiveItemSetup
                 [
                     'item_id' => $item->id,
                     'item_name' => $item->name,
-                    'unit' => 'PCS',
+                    'unit' => $unit->label,
                     'converter' => 1,
                     'quantity' => 10,
                     'stock' => 30,
