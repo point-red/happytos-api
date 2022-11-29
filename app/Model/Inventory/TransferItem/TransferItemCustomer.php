@@ -153,6 +153,11 @@ class TransferItemCustomer extends TransactionModel
          * 2. Inventories                     |       |   v    | Master Item
          */
         foreach ($transferItemCustomer->items as $transferItemCustomerItem) {
+
+            if (!$transferItemCustomerItem->item->chart_of_account_id) {
+                abort(422, 'Please set item account!');
+            }
+
             $itemAmount = $transferItemCustomerItem->item->cogs($transferItemCustomerItem->item_id) * $transferItemCustomerItem->quantity;
 
             // 1. Inventory in distribution

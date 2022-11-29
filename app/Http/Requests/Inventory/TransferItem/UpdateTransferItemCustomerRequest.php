@@ -14,10 +14,7 @@ class UpdateTransferItemCustomerRequest extends FormRequest
      */
     public function authorize()
     {
-        if (! tenant(auth()->user()->id)->hasPermissionTo('update transfer item')) {
-            return false;
-        }
-        
+   
         return true;
     }
 

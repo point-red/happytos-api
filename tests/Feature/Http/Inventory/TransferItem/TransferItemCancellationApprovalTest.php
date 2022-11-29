@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Inventory\TransferItem;
 
+use App\Model\Master\Warehouse;
 use Tests\TestCase;
 
 class TransferItemCancellationApprovalTest extends TestCase
@@ -10,6 +11,27 @@ class TransferItemCancellationApprovalTest extends TestCase
     
     public static $path = '/api/v1/inventory/transfer-items';
 
+    /** @test */
+    public function form_has_been_approved_cancellation_approve_transfer_item_customer()
+    {
+        $this->setApprovePermission();
+        
+        $transferItem = $this->createTransferItem();
+
+        $transferItem->form->cancellation_status = 1;
+        $transferItem->form->save();
+
+        $response = $this->json('POST', '/api/v1/inventory/transfer-items/'.$transferItem->id.'/cancellation-approve', [
+            'id' => $transferItem->id
+        ], $this->headers);
+        
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "This form has been approved"
+            ]);
+    }
+    
     /**
      * @test 
      */
@@ -21,10 +43,10 @@ class TransferItemCancellationApprovalTest extends TestCase
             'id' => $transferItem->id
         ], $this->headers);
         
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "Unauthorized"
             ]);
     }
 
@@ -65,9 +87,26 @@ class TransferItemCancellationApprovalTest extends TestCase
             ], 'tenant');
         }
 
+        $firstStock = $this->getStock($transferItem->items[0]->item, $this->warehouse, []);
+        $distributionWarehouse = Warehouse::where('name', 'DISTRIBUTION WAREHOUSE')->first();
+        $firstStockDistributionWarehouse = $this->getStock($transferItem->items[0]->item, $distributionWarehouse, []);
+
         $response = $this->json('POST', self::$path . '/' .$transferItem->id.'/cancellation-approve', [
             'id' => $transferItem->id
         ], $this->headers);
+
+        $endStock = $this->getStock($transferItem->items[0]->item, $this->warehouse, []);
+        $endStockDistributionWarehouse = $this->getStock($transferItem->items[0]->item, $distributionWarehouse, []);
+        
+        $this->assertEquals(
+            $endStock,
+            $firstStock + $transferItem->items[0]->quantity
+        );
+
+        $this->assertEquals(
+            $endStockDistributionWarehouse,
+            $firstStockDistributionWarehouse - $transferItem->items[0]->quantity
+        );
         
         $response->assertStatus(200)
             ->assertJson([
@@ -124,17 +163,17 @@ class TransferItemCancellationApprovalTest extends TestCase
             'reason' => 'some reason'
         ], $this->headers);
         
-        $response->assertStatus(403)
+        $response->assertStatus(422)
             ->assertJson([
-                "code" => 403,
-                "message" => "This action is unauthorized."
+                "code" => 422,
+                "message" => "Unauthorized"
             ]);
     }
 
     /**
      * @test 
      */
-    public function invalid_cancellation_reject_transfer_item()
+    public function required_reason_cancellation_reject_transfer_item()
     {
         $this->setApprovePermission();
 
@@ -145,7 +184,39 @@ class TransferItemCancellationApprovalTest extends TestCase
         $response->assertStatus(422)
             ->assertJson([
                 "code" => 422,
-                "message" => "The given data was invalid."
+                "message" => "The given data was invalid.",
+                "errors" => [
+                    "reason" => [
+                        "The reason field is required."
+                    ]
+                ]
+            ]);
+    }
+
+    /**
+     * @test 
+     */
+    public function invalid_reason_cancellation_reject_transfer_item()
+    {
+        $this->setApprovePermission();
+        
+        $transferItem = $this->createTransferItem();
+
+        $response = $this->json('POST', '/api/v1/inventory/transfer-items/'.$transferItem->id.'/cancellation-reject', [
+            'id' => $transferItem->id,
+            'reason' => $this->faker->words(256)
+        ], $this->headers);
+        
+        $response->assertStatus(422)
+            ->assertJson([
+                "code" => 422,
+                "message" => "The given data was invalid.",
+                'errors' => [
+                    'reason' => [
+                        'The reason must be a string.',
+                        'The reason may not be greater than 255 characters.',
+                    ],
+                ],
             ]);
     }
 

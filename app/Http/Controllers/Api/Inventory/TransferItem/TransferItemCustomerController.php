@@ -25,11 +25,10 @@ class TransferItemCustomerController extends Controller
     /**
      * Display a listing of the resource.
      *
-     * @param ReadTransferItemRequest $request
      * @param Request $request
      * @return ApiCollection
      */
-    public function index(ReadTransferItemRequest $request)
+    public function index(Request $request)
     {
         $transferItemCustomers = TransferItemCustomer::from(TransferItemCustomer::getTableName().' as '.TransferItemCustomer::$alias)->eloquentFilter($request);
         
@@ -100,12 +99,11 @@ class TransferItemCustomerController extends Controller
     /**
      * Display the specified resource.
      *
-     * @param ReadTransferItemRequest $request
      * @param Request $request
      * @param $id
      * @return ApiResource
      */
-    public function show(ReadTransferItemRequest $request, $id)
+    public function show(Request $request, $id)
     {
         $transferItemCustomer = TransferItemCustomer::eloquentFilter($request)->findOrFail($id);
 
@@ -162,13 +160,14 @@ class TransferItemCustomerController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param DeleteTransferItemRequest $request
      * @param Request $request
      * @param  int $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy(DeleteTransferItemRequest $request, $id)
+    public function destroy(Request $request, $id)
     {
+        $request->validate([ 'reason' => 'required' ]);
+        
         DB::connection('tenant')->beginTransaction();
 
         $transferItemCustomer = TransferItemCustomer::findOrFail($id);

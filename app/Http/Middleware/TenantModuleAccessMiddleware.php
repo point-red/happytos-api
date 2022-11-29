@@ -24,6 +24,7 @@ class TenantModuleAccessMiddleware
     protected $userDefaultWarehouse;
     protected $whitelistCheckPermissionOnDB = ['close'];
 
+    private $transferItemCustomer = false;
     private $receiveItem = false;
 
     /**
@@ -40,6 +41,7 @@ class TenantModuleAccessMiddleware
         $this->action = $this->_matchModuleAction($request->route()->getActionMethod());
 
         $this->_checkIsReceiveItem();
+        $this->_checkIsTransferItemCustomer();
         $this->_loadTenantUser();
         $this->_loadFormReference();
 
@@ -117,6 +119,7 @@ class TenantModuleAccessMiddleware
     protected function _loadFormReference()
     {
         $type = $this->receiveItem ? 'receive item' : $this->module;
+        $type = $this->transferItemCustomer ? 'transfer item customer' : $this->module;
         $requestParams = $this->request->route()->parameters;
         
         if (count($requestParams) > 0) {
@@ -235,5 +238,10 @@ class TenantModuleAccessMiddleware
     private function _checkIsReceiveItem()
     {
         $this->receiveItem = Str::contains($this->request->route()->uri, 'receive-items');
+    }
+
+    private function _checkIsTransferItemCustomer()
+    {
+        $this->transferItemCustomer = Str::contains($this->request->route()->uri, 'transfer-item-customers');
     }
 }

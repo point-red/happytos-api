@@ -4,6 +4,7 @@ namespace App\Http\Requests\Inventory\TransferItem;
 
 use App\Http\Requests\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Model\Master\ItemUnit;
 
 class StoreTransferItemCustomerRequest extends FormRequest
 {
@@ -14,9 +15,6 @@ class StoreTransferItemCustomerRequest extends FormRequest
      */
     public function authorize()
     {
-        if (! tenant(auth()->user()->id)->hasPermissionTo('create transfer item')) {
-            return false;
-        }
         
         return true;
     }
@@ -49,6 +47,20 @@ class StoreTransferItemCustomerRequest extends FormRequest
             'items.*.unit' => ValidationRule::unit(),
             'items.*.converter' => ValidationRule::converter()
         ];
+
+        foreach ($this->items as $key => $item) {
+            if ($item['quantity'] <= 0) {
+                continue;
+            }
+
+            $unit = ItemUnit::where('item_id', $item['item_id'])->first();
+            if ($unit) {
+                $rulesKeyUnit = 'items.'.$key.'.unit';
+                $rulesValueUnit = 'in:'. $unit->label.','.$unit->name;
+    
+                $rulesTransferItemCustomerItems[$rulesKeyUnit] = $rulesValueUnit;
+            }
+        }
 
         return array_merge($rulesForm, $rulesTransferItemCustomer, $rulesTransferItemCustomerItems);
     }

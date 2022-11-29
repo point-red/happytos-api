@@ -75,6 +75,8 @@ class TransferItemApprovalController extends Controller
 
                 TransferItem::updateInventory($transferItem->form, $transferItem);
                 TransferItem::updateJournal($transferItem);
+            } elseif ($transferItem->form->approval_status === 1) {
+                abort(422, 'This form has been approved');
             }
 
             DB::connection('tenant')->commit();
@@ -98,6 +100,8 @@ class TransferItemApprovalController extends Controller
      */
     public function reject(ApproveTransferItemRequest $request, $id)
     {
+        $request->validate([ 'reason' => 'required|string|max:255' ]);
+        
         $transferItem = TransferItem::findOrFail($id);
         $transferItem->form->approval_by = auth()->user()->id;
         $transferItem->form->approval_at = now();

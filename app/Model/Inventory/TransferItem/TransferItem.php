@@ -70,12 +70,27 @@ class TransferItem extends TransactionModel
         if ($this->receiveItem != null) {
             throw new IsReferencedException('Cannot edit form because referenced by transfer receive', $this->receiveItem);
         }
+
+        if ($this->form->close_status == 1) {
+            abort(422, 'Cannot edit form because the status of the form is close');
+        }
     }
 
     public function isAllowedToDelete()
     {
         if ($this->receiveItem != null) {
             throw new IsReferencedException('Cannot edit form because referenced by transfer receive', $this->receiveItem);
+        }
+
+        if ($this->form->done == 1) {
+            abort(422, 'Cannot delete form because the status of the form is done');
+        }
+    }
+
+    public function isAllowedToClose()
+    {
+        if ($this->form->done == 1) {
+            abort(422, 'Cannot close form because the status of the form is done');
         }
     }
 
@@ -172,6 +187,10 @@ class TransferItem extends TransactionModel
         foreach ($transferItem->items as $transferItemItem) {
             $itemAmount = $transferItemItem->item->cogs($transferItemItem->item_id) * $transferItemItem->quantity;
 
+            if (!$transferItemItem->item->chart_of_account_id) {
+                abort(422, 'Please set item account!');
+            }
+            
             // 1. Inventory in distribution
             $journal = new Journal;
             $journal->form_id = $transferItem->form->id;
@@ -221,6 +240,32 @@ class TransferItem extends TransactionModel
             $journal->chart_of_account_id = get_setting_journal('transfer item', 'difference stock expenses');
             $journal->debit = $itemAmount;
             $journal->save();
+        }
+
+        // decrease stock warehouse distribution
+        foreach ($transferItem->items as $transferItemItem) {
+            foreach ($transferItem->receiveItem->items as $receiveItemItem) {
+                if ($transferItemItem->item_id == $receiveItemItem->item_id and $transferItemItem->production_number == $receiveItemItem->production_number and $transferItemItem->expiry_date == $receiveItemItem->expiry_date) {
+                    if ($receiveItemItem->quantity < $transferItemItem->quantity) {
+                        $options = [];
+                        if ($transferItemItem->item->require_expiry_date) {
+                            $options['expiry_date'] = $transferItemItem->expiry_date;
+                        }
+                        if ($transferItemItem->item->require_production_number) {
+                            $options['production_number'] = $transferItemItem->production_number;
+                        }
+
+                        $options['quantity_reference'] = $transferItemItem->quantity;
+                        $options['unit_reference'] = $transferItemItem->unit;
+                        $options['converter_reference'] = $transferItemItem->converter;
+
+                        $difference = $transferItemItem->quantity - $receiveItemItem->quantity;
+
+                        $distributionWarehouse = Warehouse::where('name', 'DISTRIBUTION WAREHOUSE')->first();
+                        InventoryHelper::decrease($transferItem->form, $distributionWarehouse, $transferItemItem->item, $difference, $transferItemItem->unit, $transferItemItem->converter, $options);
+                    }
+                }
+            }
         }
     }
 }

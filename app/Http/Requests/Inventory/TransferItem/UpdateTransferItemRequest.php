@@ -47,6 +47,27 @@ class UpdateTransferItemRequest extends FormRequest
             'items.*.converter' => ValidationRule::converter()
         ];
 
+        foreach ($this->items as $key => $item) {
+            if ($item['quantity'] <= 0) {
+                continue;
+            }
+
+            $rulesKey = 'items.'.$key.'.quantity';
+            $rulesValue = 'lte:'. $item['stock'];
+
+            $rulesTransferItemItems[$rulesKey] = $rulesValue;
+        }
+
         return array_merge($rulesForm, $rulesTransferItem, $rulesTransferItemItems);
+    }
+
+    /**
+     * @return array
+     */
+    public function messages(): array
+    {
+        return [
+            'lte' => 'The quantity cannot be greater than stock warehouse',
+        ];
     }
 }

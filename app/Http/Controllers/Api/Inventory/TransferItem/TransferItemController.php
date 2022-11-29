@@ -99,24 +99,32 @@ class TransferItemController extends Controller
      */
     public function update(UpdateTransferItemRequest $request, $id)
     {
-        $transferItem = TransferItem::findOrFail($id);
-        $transferItem->isAllowedToUpdate();
+        try {
+            $transferItem = TransferItem::findOrFail($id);
+            $transferItem->isAllowedToUpdate();
 
-        $result = DB::connection('tenant')->transaction(function () use ($request, $transferItem) {
-            $transferItem->form->archive();
-            $request['number'] = $transferItem->form->edited_number;
-            $request['old_increment'] = $transferItem->form->increment;
+            $result = DB::connection('tenant')->transaction(function () use ($request, $transferItem) {
+                $transferItem->form->archive();
+                $request['number'] = $transferItem->form->edited_number;
+                $request['old_increment'] = $transferItem->form->increment;
 
-            $transferItem = TransferItem::create($request->all());
-            $transferItem
-                ->load('form')
-                ->load('warehouse')
-                ->load('items.item');
+                $transferItem = TransferItem::create($request->all());
+                $transferItem
+                    ->load('form')
+                    ->load('warehouse')
+                    ->load('items.item');
 
-            return new ApiResource($transferItem);
-        });
+                return new ApiResource($transferItem);
+            });
 
-        return $result;
+            return $result;
+        } catch (\Exception $e) {
+            DB::connection('tenant')->rollBack();
+            return response()->json([
+                'code' => 422,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**
@@ -129,15 +137,26 @@ class TransferItemController extends Controller
      */
     public function destroy(DeleteTransferItemRequest $request, $id)
     {
-        DB::connection('tenant')->beginTransaction();
+        $request->validate([ 'reason' => 'required' ]);
+        
+        try {
+            DB::connection('tenant')->beginTransaction();
 
-        $transferItem = TransferItem::findOrFail($id);
-        $transferItem->isAllowedToDelete();
-        $transferItem->requestCancel($request);
+            $transferItem = TransferItem::findOrFail($id);
+            $transferItem->isAllowedToDelete();
+            $transferItem->requestCancel($request);
 
-        DB::connection('tenant')->commit();
+            DB::connection('tenant')->commit();
 
-        return response()->json([], 204);
+            return response()->json([], 204);
+
+        } catch (\Exception $e) {
+            DB::connection('tenant')->rollBack();
+            return response()->json([
+                'code' => 422,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**
@@ -150,20 +169,30 @@ class TransferItemController extends Controller
      */
     public function close(CloseTransferItemRequest $request, $id)
     {
-        DB::connection('tenant')->beginTransaction();
+        try {
+            DB::connection('tenant')->beginTransaction();
 
-        $transferItem = TransferItem::findOrFail($id);
+            $transferItem = TransferItem::findOrFail($id);
+            $transferItem->isAllowedToClose();
 
-        $transferItem->form->request_close_to = $transferItem->form->request_approval_to;
-        $transferItem->form->request_close_by = tenant(auth()->user()->id)->id;
-        $transferItem->form->request_close_at = now();
-        $transferItem->form->request_close_reason = $request->get('data')['reason'];
-        $transferItem->form->close_status = false;
-        $transferItem->form->save();
+            $transferItem->form->request_close_to = $transferItem->form->request_approval_to;
+            $transferItem->form->request_close_by = tenant(auth()->user()->id)->id;
+            $transferItem->form->request_close_at = now();
+            $transferItem->form->request_close_reason = $request->get('data')['reason'];
+            $transferItem->form->close_status = false;
+            $transferItem->form->save();
 
-        DB::connection('tenant')->commit();
+            DB::connection('tenant')->commit();
 
-        return response()->json([], 204);
+            return response()->json([], 204);
+
+        } catch (\Exception $e) {
+            DB::connection('tenant')->rollBack();
+            return response()->json([
+                'code' => 422,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     public function export(Request $request)

@@ -13,11 +13,13 @@ use App\Model\Form;
 use App\Model\Inventory\TransferItem\TransferItemCustomer;
 use App\Helpers\Inventory\InventoryHelper;
 use App\Model\Accounting\ChartOfAccount;
+use App\Model\Master\ItemUnit;
+use Carbon\Carbon;
 
 trait TransferItemCustomerSetup {
   private $tenantUser;
   private $branchDefault;
-  private $warehouseSelected;
+  private $warehouse;
   private $unit;
   private $item;
   private $customer;
@@ -38,6 +40,7 @@ trait TransferItemCustomerSetup {
         ->first();
 
     $this->setUpTransferItemPermission();
+    $this->setUserWarehouse($this->branchDefault);
     $_SERVER['HTTP_REFERER'] = 'http://www.example.com/';
   }
 
@@ -100,6 +103,51 @@ trait TransferItemCustomerSetup {
     $hasPermission->save();
   }
 
+  private function setUserWarehouse($branch = null)
+  {
+      $warehouse = $this->createWarehouse($branch);
+      $this->tenantUser->warehouses()->syncWithoutDetaching($warehouse->id);
+      foreach ($this->tenantUser->warehouses as $warehouse) {
+          $warehouse->pivot->is_default = true;
+          $warehouse->pivot->save();
+  
+          $this->warehouse = $warehouse;
+      }
+  }
+
+  private function createWarehouse($branch = null)
+  {
+      $warehouse = new Warehouse();
+      $warehouse->name = $this->faker->name;
+      if ($branch) {
+          $warehouse->branch_id = $branch->id;
+      }
+      $warehouse->save();
+
+      return $warehouse;
+  }
+
+  protected function getStock($item, $warehouse, $options)
+  {
+      return InventoryHelper::getCurrentStock(
+          $item,
+          convert_to_server_timezone(now(), null, 'Asia/Jakarta'),
+          $warehouse,
+          $options
+      );
+  }
+
+  protected function getDate($date = null)
+  {
+      $tz = 'Asia/Jakarta';
+
+      Carbon::setLocale('id');
+
+      $time = is_null($date) ? Carbon::now($tz) : Carbon::parse($date, $tz);
+
+      return $time->format('d F Y H:i');
+  }
+
   private function importChartOfAccount()
   {
       Excel::import(new ChartOfAccountImport(), storage_path('template/chart_of_accounts_manufacture.xlsx'));
@@ -120,13 +168,25 @@ trait TransferItemCustomerSetup {
       $this->tenantUser->branches()->detach($this->branchDefault->pivot->branch_id);
   }
 
+  protected function unsetDefaultWarehouse()
+  {
+      $this->warehouse->pivot->is_default = false;
+      $this->warehouse->pivot->save();
+  }
+
   public function dummyData($item = null)
   {
       if (!$item) {
-        $item = factory(Item::class)->create();
+        $coa = ChartOfAccount::orderBy('id', 'desc')->first();
+          
+        $item = new Item;
+        $item->name = $this->faker->name;
+        $item->chart_of_account_id = $coa->id;
+        $item->save();
       }
-      
-      $warehouse = factory(Warehouse::class)->create();
+
+      $unit = factory(ItemUnit::class)->make();
+      $item->units()->save($unit);
 
       $customer = factory(Customer::class)->create();
       $expedition = factory(Expedition::class)->create();
@@ -153,13 +213,13 @@ trait TransferItemCustomerSetup {
       $options['unit_reference'] = $item->unit;
       $options['converter_reference'] = $item->converter;
 
-      InventoryHelper::increase($form, $warehouse, $item, 100, "PCS", 1, $options);
+      InventoryHelper::increase($form, $this->warehouse, $item, 100, "PCS", 1, $options);
       
       $data = [
           "date" => now()->timezone('Asia/Jakarta')->toDateTimeString(),
           "increment_group" => date("Ym"),
           "notes" => "Some notes",
-          "warehouse_id" => $warehouse->id,
+          "warehouse_id" => $this->warehouse->id,
           "customer_id" => $customer->id,
           "expedition_id" => $expedition->id,
           "plat" => "AB 123 H",
@@ -170,12 +230,12 @@ trait TransferItemCustomerSetup {
               [
                   "item_id" => $item->id,
                   "item_name" => $item->name,
-                  "unit" => "PCS",
+                  "unit" => $unit->label,
                   "converter" => 1,
                   "quantity" => 10,
                   "stock" => 100,
                   "balance" => 90,
-                  "warehouse_id" => $warehouse->id,
+                  "warehouse_id" => $this->warehouse->id,
                   'dna' => [
                       [
                           "quantity" => 10,
@@ -196,14 +256,7 @@ trait TransferItemCustomerSetup {
   {
       $this->setCreatePermission();
 
-      $coa = ChartOfAccount::orderBy('id', 'desc')->first();
-        
-      $item = new Item;
-      $item->name = $this->faker->name;
-      $item->chart_of_account_id = $coa->id;
-      $item->save();
-
-      $data = $this->dummyData($item);
+      $data = $this->dummyData();
 
       $response = $this->json('POST', '/api/v1/inventory/transfer-item-customers', $data, $this->headers);
 
