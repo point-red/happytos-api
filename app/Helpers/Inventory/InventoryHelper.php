@@ -88,8 +88,8 @@ class InventoryHelper
             ->where('warehouse_id', $warehouse->id)
             ->where('item_id', $item->id)
             ->where('quantity', abs($quantity))
-            ->where('expiry_date', $options->expiry_date)
-            ->where('production_number', $options->production_number)
+            ->where('expiry_date', $options['expiry_date'])
+            ->where('production_number', $options['production_number'])
             ->first();
 
         // Prevent double input stock
@@ -108,8 +108,8 @@ class InventoryHelper
             ->where('warehouse_id', $warehouse->id)
             ->where('item_id', $item->id)
             ->where('quantity', abs($quantity) * -1)
-            ->where('expiry_date', $options->expiry_date)
-            ->where('production_number', $options->production_number)
+            ->where('expiry_date', $options['expiry_date'])
+            ->where('production_number', $options['production_number'])
             ->first();
 
         // Prevent double input stock
