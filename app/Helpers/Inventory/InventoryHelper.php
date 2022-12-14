@@ -84,9 +84,19 @@ class InventoryHelper
         'production_number' => null,
     ])
     {
-        Item::where('id', $item->id)->increment('stock', $quantity * $converter);
+        $inventoryExists = Inventory::where('form_id', $form->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('item_id', $item->id)
+            ->where('quantity', abs($quantity))
+            ->where('expiry_date', $options->expiry_date)
+            ->where('production_number', $options->production_number)
+            ->first();
 
-        self::insert($form, $warehouse, $item, abs($quantity), $unit, $converter, $options);
+        // Prevent double input stock
+        if (!$inventoryExists) {
+            Item::where('id', $item->id)->increment('stock', $quantity * $converter);
+            self::insert($form, $warehouse, $item, abs($quantity), $unit, $converter, $options);
+        }
     }
 
     public static function decrease(Form $form, Warehouse $warehouse, Item $item, $quantity, $unit, $converter, $options = [
@@ -94,8 +104,19 @@ class InventoryHelper
         'production_number' => null,
     ])
     {
-        Item::where('id', $item->id)->decrement('stock', $quantity * $converter);
-        self::insert($form, $warehouse, $item, abs($quantity) * -1, $unit, $converter, $options);
+        $inventoryExists = Inventory::where('form_id', $form->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('item_id', $item->id)
+            ->where('quantity', abs($quantity) * -1)
+            ->where('expiry_date', $options->expiry_date)
+            ->where('production_number', $options->production_number)
+            ->first();
+
+        // Prevent double input stock
+        if (!$inventoryExists) {
+            Item::where('id', $item->id)->decrement('stock', $quantity * $converter);
+            self::insert($form, $warehouse, $item, abs($quantity) * -1, $unit, $converter, $options);
+        }
     }
 
     /**
