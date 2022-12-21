@@ -179,12 +179,12 @@ class TenantModuleAccessMiddleware
             return true;
         }
 
-        if (
-            $this->form
-            && $this->form->formable->warehouse_id !== $this->userDefaultWarehouse->id
-        ) {
-            throw new WarehouseNullException($this->action);
-        }
+//         if (
+//             $this->form
+//             && $this->form->formable->warehouse_id !== $this->userDefaultWarehouse->id
+//         ) {
+//             throw new WarehouseNullException($this->action);
+//         }
 
         return true;
     }
