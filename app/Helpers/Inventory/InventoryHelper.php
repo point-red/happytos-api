@@ -66,7 +66,7 @@ class InventoryHelper
         // check if stock is enough to prevent stock minus
         if ($quantity < 0) {
             $stock = self::getCurrentStock($item, $form->date, $warehouse, $options);
-            if (abs($quantity) > $stock) {
+            if (abs($quantity) > $stock && $warehouse->id !== 6) {
                 throw new StockNotEnoughException($item, $options, $stock);
             }
         }
