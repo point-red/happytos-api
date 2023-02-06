@@ -59,7 +59,7 @@ class AlterData extends Command
             $stockCorrections = StockCorrection::join('forms', function($q){
                 $q->on('forms.formable_id', '=', 'stock_corrections.id');
                 $q->where('forms.formable_type', 'StockCorrection');
-            })->where('forms.approval_status', 1)
+            })->where('forms.approval_status', 1)->where('forms.cancellation_status', '!=', 1)
                 ->select('stock_corrections.*')
                 ->get();
             foreach($stockCorrections as $stockCorrection) {
