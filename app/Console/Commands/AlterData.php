@@ -56,7 +56,10 @@ class AlterData extends Command
             DB::connection('tenant')->reconnect();
             DB::connection('tenant')->beginTransaction();
 
-            $stockCorrections = StockCorrection::join('forms', 'forms.id', '=', 'stock_corrections.form_id')->where('approval_status', 1)->get();
+            $stockCorrections = StockCorrection::join('forms', function($q){
+                $q->on('forms.formable_id', '=', 'stock_corrections.id');
+                $q->where('forms.formable_type', 'StockCorrection');
+            })->where('forms.approval_status', 1)->get();
             foreach($stockCorrections as $stockCorrection) {
                 $count1 = Inventory::where('form_id', $stockCorrection->form->id)->count();
                 $count2 = $stockCorrection->items->count();
