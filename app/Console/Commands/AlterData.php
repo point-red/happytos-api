@@ -59,7 +59,9 @@ class AlterData extends Command
             $stockCorrections = StockCorrection::join('forms', function($q){
                 $q->on('forms.formable_id', '=', 'stock_corrections.id');
                 $q->where('forms.formable_type', 'StockCorrection');
-            })->where('forms.approval_status', 1)->get();
+            })->where('forms.approval_status', 1)
+                ->select('stock_corrections.*')
+                ->get();
             foreach($stockCorrections as $stockCorrection) {
                 $count1 = Inventory::where('form_id', $stockCorrection->form->id)->count();
                 $count2 = $stockCorrection->items->count();
