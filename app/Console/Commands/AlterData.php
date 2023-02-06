@@ -7,10 +7,7 @@ use App\Model\Form;
 use App\Model\Inventory\Inventory;
 use App\Model\Master\Warehouse;
 use App\Model\Project\Project;
-use App\Model\Purchase\PurchaseInvoice\PurchaseInvoice;
-use App\Model\Purchase\PurchaseInvoice\PurchaseInvoiceItem;
-use App\Model\Purchase\PurchaseOrder\PurchaseOrder;
-use App\Model\Purchase\PurchaseReceive\PurchaseReceive;
+use App\Model\Inventory\StockCorrection;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Artisan;
@@ -59,15 +56,14 @@ class AlterData extends Command
             DB::connection('tenant')->reconnect();
             DB::connection('tenant')->beginTransaction();
 
-            $permission = new Permission;
-            $permission->name = "menu setting";
-            $permission->guard_name = "api";
-            $permission->save();
-            
-            $permission = new Permission;
-            $permission->name = "update setting";
-            $permission->guard_name = "api";
-            $permission->save();
+            $stockCorrections = StockCorrection::all();
+            foreach($stockCorrections as $stockCorrection) {
+                $count1 = Inventory::where('form_id', $stockCorrection->form->id)->count();
+                $count2 = $stockCorrection->items->count();
+                if ($count1 !== $count2) {
+                    $this->line('form id = ' . $stockCorrection->form->id);
+                }
+            }
 
             DB::connection('tenant')->commit();
         }
