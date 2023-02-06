@@ -61,7 +61,7 @@ class AlterData extends Command
                 $count1 = Inventory::where('form_id', $stockCorrection->form->id)->count();
                 $count2 = $stockCorrection->items->count();
                 if ($count1 !== $count2) {
-                    $this->line('form id = ' . $stockCorrection->form->id);
+                    $this->line('form id = ' . $stockCorrection->form->id . ' ' . $stockCorrection->form->date);
                 }
             }
 
