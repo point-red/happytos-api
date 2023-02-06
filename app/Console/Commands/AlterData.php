@@ -7,7 +7,7 @@ use App\Model\Form;
 use App\Model\Inventory\Inventory;
 use App\Model\Master\Warehouse;
 use App\Model\Project\Project;
-use App\Model\Inventory\StockCorrection;
+use App\Model\Inventory\StockCorrection\StockCorrection;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Artisan;
