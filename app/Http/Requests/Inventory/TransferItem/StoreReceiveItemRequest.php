@@ -45,7 +45,8 @@ class StoreReceiveItemRequest extends FormRequest
             'items.*.converter' => ValidationRule::converter()
         ];
 
-        if (! empty($this->transfer_item_id)) {
+        if (false) {
+        // if (! empty($this->transfer_item_id)) {
             $transfer = TransferItem::findOrFail($this->transfer_item_id);
             $rulesReceiveItem['warehouse_id'] = $rulesReceiveItem['warehouse_id'].'|size:'.$transfer->to_warehouse_id;
             $rulesReceiveItem['from_warehouse_id'] = $rulesReceiveItem['from_warehouse_id'].'|size:'.$transfer->warehouse_id;

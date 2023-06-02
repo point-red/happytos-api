@@ -121,7 +121,7 @@ class TenantModuleAccessMiddleware
         $type = $this->receiveItem ? 'receive item' : $this->module;
         $type = $this->transferItemCustomer ? 'transfer item customer' : $this->module;
         $requestParams = $this->request->route()->parameters;
-        
+
         if (count($requestParams) > 0) {
             $formableId = array_values($requestParams)[0];
             $this->form = Form::where('formable_id', (int) $formableId)
@@ -172,7 +172,7 @@ class TenantModuleAccessMiddleware
         if ($this->form instanceof \Illuminate\Database\Eloquent\Collection) {
             foreach ($this->form as $form) {
                 if ($form && $form->formable->warehouse_id !== $this->userDefaultWarehouse->id) {
-                    throw new WarehouseNullException($this->action);
+                    //throw new WarehouseNullException($this->action);
                 }
             }
 
@@ -183,7 +183,7 @@ class TenantModuleAccessMiddleware
             $this->form
             && $this->form->formable->warehouse_id !== $this->userDefaultWarehouse->id
         ) {
-            throw new WarehouseNullException($this->action);
+            //throw new WarehouseNullException($this->action);
         }
 
         return true;
@@ -210,7 +210,7 @@ class TenantModuleAccessMiddleware
         $defaultWarehouse = $this->userDefaultWarehouse;
 
         if ($defaultWarehouse->id !== $request->warehouse_id) {
-            throw new Exception('Warehouse '.$request->warehouse_name.' not set as default', 422);
+            // throw new Exception('Warehouse '.$request->warehouse_name.' not set as default', 423);
         }
     }
 
